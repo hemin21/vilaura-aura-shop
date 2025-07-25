@@ -1,13 +1,15 @@
 import React from 'react';
-import { ShoppingCart, Menu, X } from 'lucide-react';
+import { ShoppingCart, Menu, X, User, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 const Header = () => {
   const { totalItems } = useCart();
+  const { user, signOut } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -52,7 +54,7 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Cart and Mobile Menu */}
+          {/* Cart, Auth and Mobile Menu */}
           <div className="flex items-center space-x-4">
             {/* Cart Button */}
             <Link to="/cart">
@@ -68,6 +70,30 @@ const Header = () => {
                 )}
               </Button>
             </Link>
+
+            {/* Auth Section */}
+            {user ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={signOut}
+                className="hidden md:flex"
+                title="Sign Out"
+              >
+                <LogOut className="h-5 w-5" />
+              </Button>
+            ) : (
+              <Link to="/auth">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden md:flex"
+                  title="Sign In"
+                >
+                  <User className="h-5 w-5" />
+                </Button>
+              </Link>
+            )}
 
             {/* Mobile Menu Button */}
             <Button
@@ -97,6 +123,30 @@ const Header = () => {
                   {item.name}
                 </Link>
               ))}
+              
+              {/* Mobile Auth */}
+              <div className="pt-2 border-t border-border">
+                {user ? (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      signOut();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full justify-start"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </Button>
+                ) : (
+                  <Link to="/auth" onClick={() => setIsMobileMenuOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start">
+                      <User className="h-4 w-4 mr-2" />
+                      Sign In
+                    </Button>
+                  </Link>
+                )}
+              </div>
             </div>
           </nav>
         )}

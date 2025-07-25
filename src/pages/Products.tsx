@@ -1,8 +1,55 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import ProductCard from '@/components/ProductCard';
-import { products } from '@/data/products';
+import { supabase } from '@/integrations/supabase/client';
+import { Product } from '@/types/product';
 
 const Products = () => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('is_active', true)
+          .order('name');
+        
+        if (error) {
+          console.error('Error fetching products:', error);
+        } else {
+          // Convert database format to frontend format
+          const formattedProducts = data?.map(product => ({
+            id: product.id,
+            name: product.name,
+            description: product.description || '',
+            price: Number(product.price),
+            image: product.image_url || '',
+            category: product.category || '',
+            ingredients: product.ingredients || [],
+            weight: product.weight || ''
+          })) || [];
+          setProducts(formattedProducts);
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-16">
