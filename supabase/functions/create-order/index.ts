@@ -15,6 +15,8 @@ interface OrderItem {
 interface CreateOrderRequest {
   items: OrderItem[];
   total_amount: number;
+  payment_method?: string;
+  payment_status?: string;
   shipping_address: any;
   billing_address?: any;
 }
@@ -40,7 +42,7 @@ serve(async (req) => {
       throw new Error('User not authenticated');
     }
 
-    const { items, total_amount, shipping_address, billing_address }: CreateOrderRequest = await req.json();
+    const { items, total_amount, payment_method = 'upi', payment_status = 'paid', shipping_address, billing_address }: CreateOrderRequest = await req.json();
 
     // Generate unique order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
@@ -54,8 +56,8 @@ serve(async (req) => {
         total_amount,
         shipping_address,
         billing_address: billing_address || shipping_address,
-        status: 'pending',
-        payment_status: 'pending'
+        status: payment_status === 'paid' ? 'confirmed' : 'pending',
+        payment_status: payment_status
       })
       .select()
       .single();

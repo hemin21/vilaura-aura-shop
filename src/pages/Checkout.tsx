@@ -333,8 +333,18 @@ const Checkout: React.FC = () => {
                       </div>
                     </div>
                     
-                     <Button type="submit" className="w-full" disabled={isLoading}>
-                       {isLoading ? 'Processing...' : `Place Order - ${formatPrice(totalPrice)}`}
+                     <Button 
+                       type="submit" 
+                       className="w-full" 
+                       disabled={isLoading}
+                       onClick={(e) => {
+                         e.preventDefault();
+                         // Store shipping info for mock payment
+                         localStorage.setItem('shipping_info', JSON.stringify(shippingInfo));
+                         window.location.href = '/mock-payment';
+                       }}
+                     >
+                       {isLoading ? 'Processing...' : `Proceed to Payment - ${formatPrice(totalPrice)}`}
                      </Button>
                   </form>
                 </CardContent>
