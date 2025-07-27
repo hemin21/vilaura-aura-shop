@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { formatPrice } from '@/utils/validation';
 
 const Cart = () => {
   const { items, removeFromCart, updateQuantity, totalPrice, clearCart } = useCart();
@@ -83,7 +84,7 @@ const Cart = () => {
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-foreground truncate">{item.name}</h3>
                         <p className="text-sm text-muted-foreground">{item.category}</p>
-                        <p className="text-lg font-bold text-primary">${item.price}</p>
+                        <p className="text-lg font-bold text-primary">{formatPrice(item.price)}</p>
                       </div>
 
                       {/* Quantity Controls */}
@@ -132,7 +133,7 @@ const Cart = () => {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Subtotal</span>
-                      <span>${totalPrice.toFixed(2)}</span>
+                      <span>{formatPrice(totalPrice)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Shipping</span>
@@ -141,7 +142,7 @@ const Cart = () => {
                     <div className="border-t border-border pt-2">
                       <div className="flex justify-between font-semibold">
                         <span>Total</span>
-                        <span>${totalPrice.toFixed(2)}</span>
+                        <span>{formatPrice(totalPrice)}</span>
                       </div>
                     </div>
                   </div>

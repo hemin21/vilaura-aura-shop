@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { validateEmail, validatePhone, validatePincode, validateName, validateAddress, formatPrice, formatPhoneNumber } from '@/utils/validation';
 
 const Checkout: React.FC = () => {
   const { user } = useAuth();
@@ -25,7 +26,7 @@ const Checkout: React.FC = () => {
     city: '',
     state: '',
     zipCode: '',
-    country: 'United States'
+    country: 'India'
   });
 
   // Redirect if cart is empty
@@ -40,11 +41,74 @@ const Checkout: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setShippingInfo(prev => ({ ...prev, [name]: value }));
+    
+    // Format phone number as user types
+    if (name === 'phone') {
+      const formattedPhone = formatPhoneNumber(value);
+      setShippingInfo(prev => ({ ...prev, [name]: formattedPhone }));
+    } else {
+      setShippingInfo(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation
+    if (!validateName(shippingInfo.firstName)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid First Name",
+        description: "First name should only contain letters and spaces.",
+      });
+      return;
+    }
+
+    if (!validateName(shippingInfo.lastName)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Last Name",
+        description: "Last name should only contain letters and spaces.",
+      });
+      return;
+    }
+
+    if (!validateEmail(shippingInfo.email)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
+      });
+      return;
+    }
+
+    if (!validatePhone(shippingInfo.phone)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Phone Number",
+        description: "Please enter a valid Indian phone number (10 digits).",
+      });
+      return;
+    }
+
+    if (!validateAddress(shippingInfo.address)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Address",
+        description: "Address should be at least 10 characters long.",
+      });
+      return;
+    }
+
+    if (!validatePincode(shippingInfo.zipCode)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Pincode",
+        description: "Please enter a valid 6-digit Indian pincode.",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -141,13 +205,13 @@ const Checkout: React.FC = () => {
                             Quantity: {item.quantity}
                           </p>
                         </div>
-                        <p className="font-medium">${(item.price * item.quantity).toFixed(2)}</p>
+                        <p className="font-medium">{formatPrice(item.price * item.quantity)}</p>
                       </div>
                     ))}
                     <div className="border-t pt-4">
                       <div className="flex justify-between items-center font-bold text-lg">
                         <span>Total:</span>
-                        <span>${totalPrice.toFixed(2)}</span>
+                        <span>{formatPrice(totalPrice)}</span>
                       </div>
                     </div>
                   </div>
@@ -245,16 +309,18 @@ const Checkout: React.FC = () => {
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="zipCode">ZIP Code</Label>
-                        <Input
-                          id="zipCode"
-                          name="zipCode"
-                          value={shippingInfo.zipCode}
-                          onChange={handleInputChange}
-                          required
-                        />
-                      </div>
+                     <div>
+                       <Label htmlFor="zipCode">Pincode</Label>
+                       <Input
+                         id="zipCode"
+                         name="zipCode"
+                         value={shippingInfo.zipCode}
+                         onChange={handleInputChange}
+                         placeholder="6-digit pincode"
+                         maxLength={6}
+                         required
+                       />
+                     </div>
                       <div>
                         <Label htmlFor="country">Country</Label>
                         <Input
@@ -267,9 +333,9 @@ const Checkout: React.FC = () => {
                       </div>
                     </div>
                     
-                    <Button type="submit" className="w-full" disabled={isLoading}>
-                      {isLoading ? 'Processing...' : `Place Order - $${totalPrice.toFixed(2)}`}
-                    </Button>
+                     <Button type="submit" className="w-full" disabled={isLoading}>
+                       {isLoading ? 'Processing...' : `Place Order - ${formatPrice(totalPrice)}`}
+                     </Button>
                   </form>
                 </CardContent>
               </Card>

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/context/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { ShoppingCart } from 'lucide-react';
+import { formatPrice } from '@/utils/validation';
 
 interface ProductCardProps {
   product: Product;
@@ -46,7 +47,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         </p>
         <div className="flex items-center justify-between">
           <span className="text-2xl font-bold text-primary">
-            ${product.price}
+            {formatPrice(product.price)}
           </span>
           <Badge variant="outline" className="text-xs">
             {product.category}

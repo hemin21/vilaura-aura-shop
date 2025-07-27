@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { validateEmail, validateName } from '@/utils/validation';
 
 const Auth: React.FC = () => {
   const { user, signIn, signUp, loading } = useAuth();
@@ -34,6 +35,17 @@ const Auth: React.FC = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation
+    if (!validateEmail(signInData.email)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -65,6 +77,34 @@ const Auth: React.FC = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validation
+    if (!validateEmail(signUpData.email)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
+      });
+      return;
+    }
+
+    if (signUpData.firstName && !validateName(signUpData.firstName)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid First Name",
+        description: "First name should only contain letters and spaces.",
+      });
+      return;
+    }
+
+    if (signUpData.lastName && !validateName(signUpData.lastName)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Last Name",
+        description: "Last name should only contain letters and spaces.",
+      });
+      return;
+    }
+
     if (signUpData.password !== signUpData.confirmPassword) {
       toast({
         variant: "destructive",
