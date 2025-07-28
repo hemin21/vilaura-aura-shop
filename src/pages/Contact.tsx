@@ -6,6 +6,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Mail, Phone, MapPin, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { validateEmail, validateName } from '@/utils/validation';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -14,6 +16,7 @@ const Contact = () => {
     subject: '',
     message: ''
   });
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -21,14 +24,73 @@ const Contact = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate form submission
-    toast({
-      title: "Message sent!",
-      description: "Thank you for contacting us. We'll get back to you soon.",
-    });
-    setFormData({ name: '', email: '', subject: '', message: '' });
+    
+    // Validation
+    if (!validateName(formData.name)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Name",
+        description: "Name should only contain letters and spaces.",
+      });
+      return;
+    }
+
+    if (!validateEmail(formData.email)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
+      });
+      return;
+    }
+
+    if (formData.subject.trim().length < 3) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Subject",
+        description: "Subject should be at least 3 characters long.",
+      });
+      return;
+    }
+
+    if (formData.message.trim().length < 10) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Message",
+        description: "Message should be at least 10 characters long.",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('send-contact-email', {
+        body: formData
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Message sent successfully!",
+        description: "Thank you for contacting us. We'll get back to you within 24 hours.",
+      });
+      
+      setFormData({ name: '', email: '', subject: '', message: '' });
+    } catch (error) {
+      console.error('Contact form error:', error);
+      toast({
+        variant: "destructive",
+        title: "Error sending message",
+        description: "Please try again later or contact us directly.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -103,9 +165,9 @@ const Contact = () => {
                     />
                   </div>
                   
-                  <Button type="submit" variant="premium" size="lg" className="w-full">
+                  <Button type="submit" variant="premium" size="lg" className="w-full" disabled={isLoading}>
                     <Send className="w-4 h-4 mr-2" />
-                    Send Message
+                    {isLoading ? 'Sending...' : 'Send Message'}
                   </Button>
                 </form>
               </CardContent>
@@ -121,7 +183,7 @@ const Contact = () => {
                     </div>
                     <div>
                       <h3 className="font-semibold text-foreground">Email Us</h3>
-                      <p className="text-muted-foreground">hello@vilaura.com</p>
+                      <p className="text-muted-foreground">hjdunofficial21@gmail.com</p>
                     </div>
                   </div>
                 </CardContent>
@@ -135,7 +197,7 @@ const Contact = () => {
                     </div>
                     <div>
                       <h3 className="font-semibold text-foreground">Call Us</h3>
-                      <p className="text-muted-foreground">+1 (555) 123-4567</p>
+                      <p className="text-muted-foreground">+91 98765 43210</p>
                     </div>
                   </div>
                 </CardContent>
@@ -150,8 +212,8 @@ const Contact = () => {
                     <div>
                       <h3 className="font-semibold text-foreground">Visit Us</h3>
                       <p className="text-muted-foreground">
-                        123 Artisan Way<br />
-                        Natural Valley, CA 90210
+                        123 Natural Plaza<br />
+                        Mumbai, Maharashtra 400001
                       </p>
                     </div>
                   </div>

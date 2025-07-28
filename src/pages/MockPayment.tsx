@@ -57,13 +57,26 @@ const MockPayment: React.FC = () => {
       }
 
       if (data?.success) {
+        // Store order details for the success page
+        const shippingInfo = JSON.parse(localStorage.getItem('shipping_info') || '{}');
+        const orderDetails = {
+          orderNumber: data.order_number,
+          items,
+          totalAmount: totalPrice,
+          shippingInfo,
+          paymentMethod: paymentMethod === 'upi' ? 'UPI Payment' : 
+                         paymentMethod === 'card' ? 'Card Payment' : 'Cash on Delivery'
+        };
+        
+        localStorage.setItem('order_details', JSON.stringify(orderDetails));
+        
         toast({
           title: "Order placed successfully!",
           description: `Order #${data.order_number} has been created. ${paymentMethod === 'cod' ? 'You will pay on delivery.' : 'Payment successful!'}`,
         });
         clearCart();
         localStorage.removeItem('shipping_info');
-        navigate('/order-success', { state: { orderNumber: data.order_number, paymentMethod } });
+        navigate('/order-success', { state: { orderDetails } });
       } else {
         throw new Error('Failed to create order');
       }

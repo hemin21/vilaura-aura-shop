@@ -1,28 +1,162 @@
-import React from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Package, Home, ShoppingBag } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CheckCircle, Download, Home, Package } from 'lucide-react';
+import { formatPrice } from '@/utils/validation';
+import { useCart } from '@/context/CartContext';
+
+interface OrderDetails {
+  orderNumber: string;
+  items: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
+  totalAmount: number;
+  shippingInfo: any;
+  paymentMethod: string;
+}
 
 const OrderSuccess: React.FC = () => {
+  const navigate = useNavigate();
   const location = useLocation();
-  const { orderNumber, paymentMethod } = location.state || {};
+  const { clearCart } = useCart();
+  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
 
-  if (!orderNumber) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Order Not Found</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-4">
-              We couldn't find your order information.
+  useEffect(() => {
+    // Get order details from localStorage or location state
+    const savedOrderDetails = localStorage.getItem('order_details');
+    if (savedOrderDetails) {
+      setOrderDetails(JSON.parse(savedOrderDetails));
+      localStorage.removeItem('order_details'); // Clean up
+    } else if (location.state?.orderDetails) {
+      setOrderDetails(location.state.orderDetails);
+    }
+    clearCart(); // Clear cart on success page
+  }, [clearCart, location.state]);
+
+  const downloadBill = () => {
+    if (!orderDetails) return;
+    
+    const billHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>VilĀura - Order Bill</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+          .header { text-align: center; border-bottom: 2px solid #8B5CF6; padding-bottom: 20px; margin-bottom: 30px; }
+          .company-name { font-size: 28px; font-weight: bold; color: #8B5CF6; margin-bottom: 5px; }
+          .bill-title { font-size: 24px; margin: 20px 0; }
+          .order-info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .two-column { display: flex; justify-content: space-between; margin: 20px 0; }
+          .column { width: 48%; }
+          .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          .items-table th, .items-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+          .items-table th { background: #8B5CF6; color: white; }
+          .total-section { background: #8B5CF6; color: white; padding: 15px; border-radius: 8px; margin-top: 20px; }
+          .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="company-name">VilĀura</div>
+          <div>Natural Artisan Soaps & Skincare</div>
+        </div>
+        
+        <div class="bill-title">📧 ORDER CONFIRMATION & BILL</div>
+        
+        <div class="order-info">
+          <strong>Order Number:</strong> ${orderDetails.orderNumber}<br>
+          <strong>Date:</strong> ${new Date().toLocaleDateString('en-IN')}<br>
+          <strong>Payment Method:</strong> ${orderDetails.paymentMethod}
+        </div>
+
+        <div class="two-column">
+          <div class="column">
+            <h3>📍 Shipping Address</h3>
+            <p>
+              ${orderDetails.shippingInfo.firstName} ${orderDetails.shippingInfo.lastName}<br>
+              ${orderDetails.shippingInfo.address}<br>
+              ${orderDetails.shippingInfo.city}, ${orderDetails.shippingInfo.state}<br>
+              ${orderDetails.shippingInfo.zipCode}<br>
+              📞 ${orderDetails.shippingInfo.phone}<br>
+              ✉️ ${orderDetails.shippingInfo.email}
             </p>
-            <Link to="/">
-              <Button className="w-full">Return Home</Button>
-            </Link>
+          </div>
+          <div class="column">
+            <h3>🏢 Company Details</h3>
+            <p>
+              VilĀura Natural Products<br>
+              123 Natural Plaza<br>
+              Mumbai, Maharashtra 400001<br>
+              📞 +91 98765 43210<br>
+              ✉️ hjdunofficial21@gmail.com
+            </p>
+          </div>
+        </div>
+
+        <h3>🛍️ Order Items</h3>
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Quantity</th>
+              <th>Unit Price</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${orderDetails.items.map(item => `
+              <tr>
+                <td>${item.name}</td>
+                <td>${item.quantity}</td>
+                <td>${formatPrice(item.price)}</td>
+                <td>${formatPrice(item.price * item.quantity)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="total-section">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 18px;"><strong>Total Amount:</strong></span>
+            <span style="font-size: 24px; font-weight: bold;">${formatPrice(orderDetails.totalAmount)}</span>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p><strong>Thank you for choosing VilĀura!</strong></p>
+          <p>Your order will be processed within 1-2 business days.</p>
+          <p>For any queries, contact us at hjdunofficial21@gmail.com</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([billHTML], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `VilAura-Bill-${orderDetails.orderNumber}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (!orderDetails) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardContent className="p-6">
+            <Package className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-4">No Order Details Found</h2>
+            <Button onClick={() => navigate('/')} className="w-full">
+              <Home className="w-4 h-4 mr-2" />
+              Go to Home
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -32,145 +166,113 @@ const OrderSuccess: React.FC = () => {
   return (
     <div className="min-h-screen bg-background py-8">
       <div className="container mx-auto px-4">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {/* Success Header */}
-          <div className="text-center mb-8 animate-fade-in">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="w-12 h-12 text-green-600" />
-            </div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">
-              Order Placed Successfully!
-            </h1>
-            <p className="text-muted-foreground">
-              Thank you for your purchase. Your order has been confirmed.
-            </p>
-          </div>
-
-          {/* Order Details */}
-          <Card className="mb-6 animate-scale-in">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Order Details</span>
-                <Badge variant="secondary">
-                  #{orderNumber}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Order Number</p>
-                  <p className="font-medium">#{orderNumber}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Payment Method</p>
-                  <p className="font-medium capitalize">
-                    {paymentMethod === 'cod' ? 'Cash on Delivery' : 
-                     paymentMethod === 'upi' ? 'UPI Payment' : 'Card Payment'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Order Date</p>
-                  <p className="font-medium">{new Date().toLocaleDateString('en-IN')}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
-                  <Badge variant={paymentMethod === 'cod' ? 'secondary' : 'default'}>
-                    {paymentMethod === 'cod' ? 'Confirmed' : 'Paid'}
-                  </Badge>
-                </div>
+          <Card className="text-center mb-8 bg-gradient-hero shadow-card">
+            <CardHeader className="pb-4">
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-10 h-10 text-primary" />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* What's Next */}
-          <Card className="mb-6 animate-slide-up">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Package className="w-5 h-5 mr-2" />
-                What happens next?
-              </CardTitle>
+              <CardTitle className="text-3xl text-primary mb-2">Order Confirmed!</CardTitle>
+              <CardDescription className="text-lg">
+                Thank you for your purchase. Your order has been successfully placed.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start space-x-3">
-                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-primary font-bold text-sm">1</span>
-                  </div>
-                  <div>
-                    <p className="font-medium">Order Confirmation</p>
-                    <p className="text-sm text-muted-foreground">
-                      You'll receive an email confirmation with order details.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-primary font-bold text-sm">2</span>
-                  </div>
-                  <div>
-                    <p className="font-medium">Order Processing</p>
-                    <p className="text-sm text-muted-foreground">
-                      We'll carefully prepare your handmade soaps for shipping.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-primary font-bold text-sm">3</span>
-                  </div>
-                  <div>
-                    <p className="font-medium">Shipping & Delivery</p>
-                    <p className="text-sm text-muted-foreground">
-                      Your order will be shipped within 2-3 business days.
-                      {paymentMethod === 'cod' && ' You can pay when you receive the package.'}
-                    </p>
-                  </div>
-                </div>
+              <div className="bg-background/50 rounded-lg p-4 mb-6">
+                <h3 className="font-semibold text-foreground mb-2">Order Number</h3>
+                <p className="text-2xl font-bold text-primary">{orderDetails.orderNumber}</p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button onClick={downloadBill} variant="outline" size="lg">
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Bill
+                </Button>
+                <Button onClick={() => navigate('/')} size="lg">
+                  <Home className="w-4 h-4 mr-2" />
+                  Continue Shopping
+                </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Demo Notice */}
-          <Card className="mb-6 border-blue-200 bg-blue-50">
-            <CardContent className="pt-6">
-              <div className="flex items-start space-x-3">
-                <Badge variant="secondary" className="mt-1">DEMO</Badge>
-                <div>
-                  <p className="font-medium text-blue-800">Demo Mode Active</p>
-                  <p className="text-sm text-blue-700">
-                    This is a demonstration order. No real products will be shipped 
-                    and no actual payment was processed.
-                  </p>
+          {/* Order Details */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Order Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Package className="w-5 h-5 mr-2" />
+                  Order Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {orderDetails.items.map((item, index) => (
+                    <div key={index} className="flex justify-between items-center py-3 border-b border-border">
+                      <div>
+                        <h4 className="font-medium text-foreground">{item.name}</h4>
+                        <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
+                      </div>
+                      <p className="font-semibold">{formatPrice(item.price * item.quantity)}</p>
+                    </div>
+                  ))}
+                  <div className="pt-4 border-t-2 border-primary">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-bold text-foreground">Total Amount:</span>
+                      <span className="text-2xl font-bold text-primary">{formatPrice(orderDetails.totalAmount)}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Link to="/dashboard">
-              <Button variant="outline" className="w-full">
-                <ShoppingBag className="w-4 h-4 mr-2" />
-                View Order History
-              </Button>
-            </Link>
-            <Link to="/">
-              <Button className="w-full">
-                <Home className="w-4 h-4 mr-2" />
-                Continue Shopping
-              </Button>
-            </Link>
-          </div>
+            {/* Shipping & Payment Info */}
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Shipping Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p className="font-semibold text-foreground">
+                      {orderDetails.shippingInfo.firstName} {orderDetails.shippingInfo.lastName}
+                    </p>
+                    <p className="text-muted-foreground">{orderDetails.shippingInfo.address}</p>
+                    <p className="text-muted-foreground">
+                      {orderDetails.shippingInfo.city}, {orderDetails.shippingInfo.state} {orderDetails.shippingInfo.zipCode}
+                    </p>
+                    <p className="text-muted-foreground">📞 {orderDetails.shippingInfo.phone}</p>
+                    <p className="text-muted-foreground">✉️ {orderDetails.shippingInfo.email}</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Support */}
-          <div className="text-center mt-8 p-4 bg-muted/30 rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              Need help with your order? 
-              <Link to="/contact" className="text-primary hover:underline ml-1">
-                Contact our support team
-              </Link>
-            </p>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payment Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p><span className="font-semibold">Payment Method:</span> {orderDetails.paymentMethod}</p>
+                    <p><span className="font-semibold">Status:</span> <span className="text-green-600">Confirmed</span></p>
+                    <p><span className="font-semibold">Date:</span> {new Date().toLocaleDateString('en-IN')}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-card">
+                <CardContent className="p-6">
+                  <h3 className="font-semibold text-foreground mb-3">What's Next?</h3>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li>• Order confirmation email sent</li>
+                    <li>• Processing will begin within 1-2 business days</li>
+                    <li>• You'll receive tracking information once shipped</li>
+                    <li>• Expected delivery: 3-5 business days</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
