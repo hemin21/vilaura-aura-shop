@@ -5,9 +5,10 @@ export const validateEmail = (email: string): boolean => {
 };
 
 export const validatePhone = (phone: string): boolean => {
-  // Indian phone number validation (10 digits, optionally starting with +91)
-  const phoneRegex = /^(\+91|91)?[6-9]\d{9}$/;
-  return phoneRegex.test(phone.replace(/\s+/g, ''));
+  // Indian phone number validation (exactly 10 digits, starting with 6-9)
+  const cleaned = phone.replace(/\D/g, '');
+  const phoneRegex = /^[6-9]\d{9}$/;
+  return cleaned.length === 10 && phoneRegex.test(cleaned);
 };
 
 export const validatePincode = (pincode: string): boolean => {
@@ -35,9 +36,32 @@ export const formatPhoneNumber = (phone: string): string => {
   // Remove all non-digit characters
   const cleaned = phone.replace(/\D/g, '');
   
-  // Format as XXX-XXX-XXXX for display
-  if (cleaned.length >= 10) {
-    return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+  // Limit to 10 digits and format as XXXXX-XXXXX for Indian mobile numbers
+  const limited = cleaned.slice(0, 10);
+  if (limited.length >= 5) {
+    return limited.replace(/(\d{5})(\d{0,5})/, '$1-$2').replace(/-$/, '');
   }
-  return cleaned;
+  return limited;
+};
+
+// Fetch city and state from pincode
+export const fetchPlaceFromPincode = async (pincode: string): Promise<{city: string, state: string} | null> => {
+  try {
+    if (!validatePincode(pincode)) return null;
+    
+    const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+    const data = await response.json();
+    
+    if (data && data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+      const postOffice = data[0].PostOffice[0];
+      return {
+        city: postOffice.District || postOffice.Block || '',
+        state: postOffice.State || ''
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching place from pincode:', error);
+    return null;
+  }
 };

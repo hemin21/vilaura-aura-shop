@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { validateEmail, validatePhone, validatePincode, validateName, validateAddress, formatPrice, formatPhoneNumber } from '@/utils/validation';
+import { validateEmail, validatePhone, validatePincode, validateName, validateAddress, formatPrice, formatPhoneNumber, fetchPlaceFromPincode } from '@/utils/validation';
 
 const Checkout: React.FC = () => {
   const { user } = useAuth();
@@ -39,13 +39,31 @@ const Checkout: React.FC = () => {
     return <Navigate to="/auth" replace />;
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     
     // Format phone number as user types
     if (name === 'phone') {
       const formattedPhone = formatPhoneNumber(value);
       setShippingInfo(prev => ({ ...prev, [name]: formattedPhone }));
+    } else if (name === 'zipCode') {
+      // Auto-detect city and state from pincode
+      setShippingInfo(prev => ({ ...prev, [name]: value }));
+      
+      if (value.length === 6) {
+        const placeData = await fetchPlaceFromPincode(value);
+        if (placeData) {
+          setShippingInfo(prev => ({
+            ...prev,
+            city: placeData.city,
+            state: placeData.state
+          }));
+          toast({
+            title: "Location detected",
+            description: `City: ${placeData.city}, State: ${placeData.state}`,
+          });
+        }
+      }
     } else {
       setShippingInfo(prev => ({ ...prev, [name]: value }));
     }
@@ -263,13 +281,15 @@ const Checkout: React.FC = () => {
                     </div>
                     
                     <div>
-                      <Label htmlFor="phone">Phone</Label>
+                      <Label htmlFor="phone">Phone (10 digits)</Label>
                       <Input
                         id="phone"
                         name="phone"
                         type="tel"
                         value={shippingInfo.phone}
                         onChange={handleInputChange}
+                        placeholder="XXXXX-XXXXX"
+                        maxLength={11}
                         required
                       />
                     </div>
@@ -310,13 +330,13 @@ const Checkout: React.FC = () => {
                     
                     <div className="grid grid-cols-2 gap-4">
                      <div>
-                       <Label htmlFor="zipCode">Pincode</Label>
+                       <Label htmlFor="zipCode">Pincode (Auto-detects City/State)</Label>
                        <Input
                          id="zipCode"
                          name="zipCode"
                          value={shippingInfo.zipCode}
                          onChange={handleInputChange}
-                         placeholder="6-digit pincode"
+                         placeholder="Enter 6-digit pincode"
                          maxLength={6}
                          required
                        />
