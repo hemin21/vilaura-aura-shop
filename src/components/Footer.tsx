@@ -65,17 +65,17 @@ const Footer = () => {
             <div className="space-y-3 text-sm">
               <div className="flex items-center space-x-2">
                 <Mail className="w-4 h-4 text-primary" />
-                <span className="text-muted-foreground">hello@vilaura.com</span>
+                <span className="text-muted-foreground">vilaura.official@gmail.com</span>
               </div>
               <div className="flex items-center space-x-2">
                 <Phone className="w-4 h-4 text-primary" />
-                <span className="text-muted-foreground">+1 (555) 123-4567</span>
+                <span className="text-muted-foreground">+91 9898786878</span>
               </div>
               <div className="flex items-start space-x-2">
                 <MapPin className="w-4 h-4 text-primary mt-0.5" />
                 <span className="text-muted-foreground">
-                  123 Artisan Way<br />
-                  Natural Valley, CA 90210
+                  karamsad Road<br />
+                  Vallbh Vidyanagar Anand
                 </span>
               </div>
             </div>

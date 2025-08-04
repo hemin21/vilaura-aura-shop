@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { formatPrice } from '@/utils/validation';
 import { Package, User, MapPin, Phone, Mail, Calendar, ShoppingBag } from 'lucide-react';
+import { useUser, SignOutButton } from '@clerk/clerk-react';
 
 interface Order {
   id: string;
@@ -34,58 +34,36 @@ interface Profile {
 }
 
 const Dashboard: React.FC = () => {
-  const { user, signOut } = useAuth();
+  const { user, isSignedIn, isLoaded } = useUser();
   const [orders, setOrders] = useState<Order[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  if (!user) {
+  // Show loading while Clerk is loading
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Redirect if not signed in
+  if (!isSignedIn || !user) {
     return <Navigate to="/auth" replace />;
   }
 
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        // Fetch orders
-        const { data: ordersData, error: ordersError } = await supabase
-          .from('orders')
-          .select(`
-            id,
-            order_number,
-            total_amount,
-            status,
-            payment_status,
-            created_at,
-            order_items!inner(
-              quantity,
-              price,
-              products!inner(
-                name,
-                image_url
-              )
-            )
-          `)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (ordersError) {
-          console.error('Error fetching orders:', ordersError);
-        } else {
-          setOrders(ordersData || []);
-        }
-
-        // Fetch profile
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('first_name, last_name, phone')
-          .eq('user_id', user.id)
-          .single();
-
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-        } else {
-          setProfile(profileData);
-        }
+        // For now, we'll show a simplified dashboard since orders are stored with user_id
+        // In a real app, you'd link Clerk user ID with orders
+        setOrders([]); // Empty for now since we need to link Clerk user with orders
+        setProfile({
+          first_name: user.firstName || '',
+          last_name: user.lastName || '',
+          phone: ''
+        });
       } catch (error) {
         console.error('Error fetching user data:', error);
       } finally {
@@ -94,7 +72,7 @@ const Dashboard: React.FC = () => {
     };
 
     fetchUserData();
-  }, [user.id]);
+  }, [user]);
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -132,9 +110,11 @@ const Dashboard: React.FC = () => {
                 Manage your account and view your orders
               </p>
             </div>
-            <Button variant="outline" onClick={signOut}>
-              Sign Out
-            </Button>
+            <SignOutButton>
+              <Button variant="outline">
+                Sign Out
+              </Button>
+            </SignOutButton>
           </div>
 
           <Tabs defaultValue="orders" className="space-y-6">
@@ -242,18 +222,18 @@ const Dashboard: React.FC = () => {
                     <CardTitle className="flex items-center">
                       <Avatar className="w-12 h-12 mr-4">
                         <AvatarFallback>
-                          {profile?.first_name?.[0] || user.email?.[0]?.toUpperCase() || 'U'}
+                          {user.firstName?.[0] || user.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <h3 className="text-xl">
-                          {profile?.first_name && profile?.last_name 
-                            ? `${profile.first_name} ${profile.last_name}`
+                          {user.firstName && user.lastName 
+                            ? `${user.firstName} ${user.lastName}`
                             : 'Welcome!'
                           }
                         </h3>
                         <p className="text-sm text-muted-foreground">
-                          Customer since {new Date(user.created_at).toLocaleDateString('en-IN')}
+                          Customer since {new Date(user.createdAt).toLocaleDateString('en-IN')}
                         </p>
                       </div>
                     </CardTitle>
@@ -265,7 +245,7 @@ const Dashboard: React.FC = () => {
                           <Mail className="w-5 h-5 text-muted-foreground" />
                           <div>
                             <p className="text-sm text-muted-foreground">Email</p>
-                            <p className="font-medium">{user.email}</p>
+                            <p className="font-medium">{user.emailAddresses?.[0]?.emailAddress || 'No email'}</p>
                           </div>
                         </div>
                         
@@ -286,7 +266,7 @@ const Dashboard: React.FC = () => {
                           <div>
                             <p className="text-sm text-muted-foreground">Member Since</p>
                             <p className="font-medium">
-                              {new Date(user.created_at).toLocaleDateString('en-IN', {
+                              {new Date(user.createdAt).toLocaleDateString('en-IN', {
                                 year: 'numeric',
                                 month: 'long',
                                 day: 'numeric'

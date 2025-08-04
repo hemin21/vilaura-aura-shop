@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,13 +9,25 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { validateEmail, validatePhone, validatePincode, validateName, validateAddress, formatPrice, formatPhoneNumber, fetchPlaceFromPincode } from '@/utils/validation';
+import { SignIn, useUser } from '@clerk/clerk-react';
+
+const paymentMethods = [
+  { id: 'upi', label: 'UPI Payment', description: 'Pay using UPI apps like Google Pay, PhonePe, Paytm' },
+  { id: 'card', label: 'Credit/Debit Card', description: 'Pay using Visa, MasterCard, RuPay cards' },
+  { id: 'netbanking', label: 'Net Banking', description: 'Pay using your bank\'s net banking service' },
+  { id: 'cod', label: 'Cash on Delivery', description: 'Pay when you receive your order' }
+];
 
 const Checkout: React.FC = () => {
   const { user } = useAuth();
   const { items, totalPrice, clearCart } = useCart();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('upi');
+
+  const { isSignedIn, user: clerkUser } = useUser();
 
   const [shippingInfo, setShippingInfo] = useState({
     firstName: '',
@@ -34,9 +46,21 @@ const Checkout: React.FC = () => {
     return <Navigate to="/cart" replace />;
   }
 
-  // Redirect if not logged in
-  if (!user) {
-    return <Navigate to="/auth" replace />;
+  // Show Clerk SignIn if not authenticated
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Sign in to continue</CardTitle>
+            <CardDescription>You must be signed in to proceed to checkout.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SignIn routing="hash" />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,107 +93,70 @@ const Checkout: React.FC = () => {
     }
   };
 
-  const handleSubmitOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validation
+  const validateForm = () => {
     if (!validateName(shippingInfo.firstName)) {
       toast({
         variant: "destructive",
         title: "Invalid First Name",
         description: "First name should only contain letters and spaces.",
       });
-      return;
+      return false;
     }
-
     if (!validateName(shippingInfo.lastName)) {
       toast({
         variant: "destructive",
         title: "Invalid Last Name",
         description: "Last name should only contain letters and spaces.",
       });
-      return;
+      return false;
     }
-
     if (!validateEmail(shippingInfo.email)) {
       toast({
         variant: "destructive",
         title: "Invalid Email",
         description: "Please enter a valid email address.",
       });
-      return;
+      return false;
     }
-
     if (!validatePhone(shippingInfo.phone)) {
       toast({
         variant: "destructive",
         title: "Invalid Phone Number",
         description: "Please enter a valid Indian phone number (10 digits).",
       });
-      return;
+      return false;
     }
-
     if (!validateAddress(shippingInfo.address)) {
       toast({
         variant: "destructive",
         title: "Invalid Address",
         description: "Address should be at least 10 characters long.",
       });
-      return;
+      return false;
     }
-
     if (!validatePincode(shippingInfo.zipCode)) {
       toast({
         variant: "destructive",
         title: "Invalid Pincode",
         description: "Please enter a valid 6-digit Indian pincode.",
       });
+      return false;
+    }
+    return true;
+  };
+
+  const handleProceedToPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      // Create order via Supabase function
-      const orderItems = items.map(item => ({
-        product_id: item.id,
-        quantity: item.quantity,
-        price: item.price
-      }));
-
-      const { data, error } = await supabase.functions.invoke('create-order', {
-        body: {
-          items: orderItems,
-          total_amount: totalPrice,
-          shipping_address: shippingInfo,
-          billing_address: shippingInfo
-        }
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (data?.success) {
-        toast({
-          title: "Order placed successfully!",
-          description: `Order #${data.order_number} has been created.`,
-        });
-        clearCart();
-        setOrderComplete(true);
-      } else {
-        throw new Error('Failed to create order');
-      }
-    } catch (error) {
-      console.error('Checkout error:', error);
-      toast({
-        variant: "destructive",
-        title: "Order failed",
-        description: "There was an error processing your order. Please try again.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    // Save shipping info to localStorage for payment page
+    localStorage.setItem('shipping_info', JSON.stringify(shippingInfo));
+    
+    // Navigate to payment page
+    navigate('/mock-payment');
   };
 
   if (orderComplete) {
@@ -208,7 +195,7 @@ const Checkout: React.FC = () => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Order Summary */}
-            <div>
+            <div className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Order Summary</CardTitle>
@@ -235,6 +222,34 @@ const Checkout: React.FC = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Payment Method Selection */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payment Method</CardTitle>
+                  <CardDescription>Choose your preferred payment method</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {paymentMethods.map((method) => (
+                      <label key={method.id} className="flex items-start space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-accent/50">
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value={method.id}
+                          checked={selectedPaymentMethod === method.id}
+                          onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                          className="mt-1 accent-primary"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium">{method.label}</div>
+                          <div className="text-sm text-muted-foreground">{method.description}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Shipping Information */}
@@ -242,9 +257,10 @@ const Checkout: React.FC = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Shipping Information</CardTitle>
+                  <CardDescription>Please provide your delivery details</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <form onSubmit={handleSubmitOrder} className="space-y-4">
+                  <form onSubmit={handleProceedToPayment} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="firstName">First Name</Label>
@@ -267,9 +283,8 @@ const Checkout: React.FC = () => {
                         />
                       </div>
                     </div>
-                    
                     <div>
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">Email Address</Label>
                       <Input
                         id="email"
                         name="email"
@@ -279,21 +294,18 @@ const Checkout: React.FC = () => {
                         required
                       />
                     </div>
-                    
                     <div>
-                      <Label htmlFor="phone">Phone (10 digits)</Label>
+                      <Label htmlFor="phone">Mobile Number</Label>
                       <Input
                         id="phone"
                         name="phone"
-                        type="tel"
                         value={shippingInfo.phone}
                         onChange={handleInputChange}
-                        placeholder="XXXXX-XXXXX"
-                        maxLength={11}
+                        placeholder="Enter 10-digit mobile number"
+                        maxLength={14}
                         required
                       />
                     </div>
-                    
                     <div>
                       <Label htmlFor="address">Address</Label>
                       <Input
@@ -301,10 +313,10 @@ const Checkout: React.FC = () => {
                         name="address"
                         value={shippingInfo.address}
                         onChange={handleInputChange}
+                        placeholder="Enter your complete address"
                         required
                       />
                     </div>
-                    
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="city">City</Label>
@@ -327,20 +339,19 @@ const Checkout: React.FC = () => {
                         />
                       </div>
                     </div>
-                    
                     <div className="grid grid-cols-2 gap-4">
-                     <div>
-                       <Label htmlFor="zipCode">Pincode (Auto-detects City/State)</Label>
-                       <Input
-                         id="zipCode"
-                         name="zipCode"
-                         value={shippingInfo.zipCode}
-                         onChange={handleInputChange}
-                         placeholder="Enter 6-digit pincode"
-                         maxLength={6}
-                         required
-                       />
-                     </div>
+                      <div>
+                        <Label htmlFor="zipCode">Pincode (Auto-detects City/State)</Label>
+                        <Input
+                          id="zipCode"
+                          name="zipCode"
+                          value={shippingInfo.zipCode}
+                          onChange={handleInputChange}
+                          placeholder="Enter 6-digit pincode"
+                          maxLength={6}
+                          required
+                        />
+                      </div>
                       <div>
                         <Label htmlFor="country">Country</Label>
                         <Input
@@ -352,20 +363,13 @@ const Checkout: React.FC = () => {
                         />
                       </div>
                     </div>
-                    
-                     <Button 
-                       type="submit" 
-                       className="w-full" 
-                       disabled={isLoading}
-                       onClick={(e) => {
-                         e.preventDefault();
-                         // Store shipping info for mock payment
-                         localStorage.setItem('shipping_info', JSON.stringify(shippingInfo));
-                         window.location.href = '/mock-payment';
-                       }}
-                     >
-                       {isLoading ? 'Processing...' : `Proceed to Payment - ${formatPrice(totalPrice)}`}
-                     </Button>
+                    <Button 
+                      type="submit" 
+                      className="w-full" 
+                      disabled={isLoading}
+                    >
+                      {isLoading ? 'Processing...' : `Proceed to Payment - ${formatPrice(totalPrice)}`}
+                    </Button>
                   </form>
                 </CardContent>
               </Card>

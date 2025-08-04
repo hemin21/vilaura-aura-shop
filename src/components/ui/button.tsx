@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 shadow-button",
   {
     variants: {
       variant: {
@@ -18,8 +18,8 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground shadow-soft hover:bg-secondary/80",
         ghost: "hover:bg-secondary hover:text-secondary-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        premium: "bg-gradient-accent text-accent-foreground shadow-glow hover:shadow-card hover:scale-105 font-semibold",
-        cart: "bg-primary text-primary-foreground shadow-soft hover:bg-primary/90 hover:shadow-glow transition-all duration-300"
+        premium: "bg-gradient-to-r from-yellow-300 via-accent to-yellow-400 text-accent-foreground shadow-glow hover:shadow-card hover:scale-105 font-semibold border-0",
+        cart: "bg-primary text-primary-foreground shadow-glow hover:bg-primary/95 hover:shadow-card hover:scale-105 font-bold border-0",
       },
       size: {
         default: "h-10 px-4 py-2",

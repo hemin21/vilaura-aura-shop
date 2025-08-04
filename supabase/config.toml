@@ -1,1 +1,11 @@
 project_id = "ttynpoekdlemfriqvhte"
+
+[functions]
+[functions.create-order]
+verify_jwt = false
+
+[functions.send-order-notification]
+verify_jwt = false
+
+[functions.send-contact-email]
+verify_jwt = false

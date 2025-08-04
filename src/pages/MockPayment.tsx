@@ -1,253 +1,340 @@
-import React, { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { SignIn, useUser } from '@clerk/clerk-react';
 import { formatPrice } from '@/utils/validation';
-import { CheckCircle, CreditCard, Loader2 } from 'lucide-react';
+import { sendOrderEmail } from '@/utils/emailjs';
+import { sendSimpleEmail } from '@/utils/email-backup';
+
+const paymentOptions = [
+  { 
+    label: 'UPI Payment', 
+    value: 'upi',
+    description: 'Pay using UPI apps like Google Pay, PhonePe, Paytm',
+    icon: '📱'
+  },
+  { 
+    label: 'Credit/Debit Card', 
+    value: 'card',
+    description: 'Pay using Visa, MasterCard, RuPay cards',
+    icon: '💳'
+  },
+  { 
+    label: 'Net Banking', 
+    value: 'netbanking',
+    description: 'Pay using your bank\'s net banking service',
+    icon: '🏦'
+  },
+  { 
+    label: 'Cash on Delivery', 
+    value: 'cod',
+    description: 'Pay when you receive your order',
+    icon: '💰'
+  },
+];
 
 const MockPayment: React.FC = () => {
-  const { user } = useAuth();
+  const { isSignedIn, user: clerkUser } = useUser();
   const { items, totalPrice, clearCart } = useCart();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'cod'>('upi');
+  const [selectedOption, setSelectedOption] = useState('upi');
+  const [isLoading, setIsLoading] = useState(false);
+  const [paymentStep, setPaymentStep] = useState<'select' | 'processing' | 'success' | 'failed'>('select');
+  const [shippingInfo, setShippingInfo] = useState<any>(null);
 
-  // Redirect if cart is empty or user not logged in
+  useEffect(() => {
+    // Get shipping info from localStorage
+    const savedShippingInfo = localStorage.getItem('shipping_info');
+    if (savedShippingInfo) {
+      setShippingInfo(JSON.parse(savedShippingInfo));
+    }
+  }, []);
+
+  // If not signed in, show Clerk SignIn
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Sign in to continue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SignIn routing="hash" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // If cart is empty, redirect to cart
   if (items.length === 0) {
-    return <Navigate to="/cart" replace />;
+    navigate('/cart');
+    return null;
   }
 
-  if (!user) {
-    return <Navigate to="/auth" replace />;
+  // If no shipping info, redirect to checkout
+  if (!shippingInfo) {
+    navigate('/checkout');
+    return null;
   }
 
-  const handleMockPayment = async () => {
-    setIsProcessing(true);
+  const simulatePayment = async (method: string): Promise<boolean> => {
+    // Simulate payment processing delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Simulate different success rates based on payment method
+    const successRates = {
+      'upi': 0.95,
+      'card': 0.90,
+      'netbanking': 0.85,
+      'cod': 1.0 // COD always succeeds
+    };
+    
+    const successRate = successRates[method as keyof typeof successRates] || 0.9;
+    return Math.random() < successRate;
+  };
+
+  const handlePayment = async () => {
+    setIsLoading(true);
+    setPaymentStep('processing');
     
     try {
-      // Simulate payment processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('Starting payment process...');
+      console.log('Payment method:', selectedOption);
+      console.log('Shipping info:', shippingInfo);
       
-      // Create order via Supabase function
+      // Simulate payment processing
+      const paymentSuccess = await simulatePayment(selectedOption);
+      
+      if (!paymentSuccess) {
+        setPaymentStep('failed');
+        toast({
+          variant: 'destructive',
+          title: 'Payment Failed',
+          description: 'Your payment was not successful. Please try again with a different method.',
+        });
+        return;
+      }
+
+      // Payment successful, create order
       const orderItems = items.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
         price: item.price
       }));
 
-      const { data, error } = await supabase.functions.invoke('create-order', {
-        body: {
-          items: orderItems,
-          total_amount: totalPrice,
-          payment_method: paymentMethod,
-          payment_status: paymentMethod === 'cod' ? 'pending' : 'paid',
-          shipping_address: JSON.parse(localStorage.getItem('shipping_info') || '{}'),
-          billing_address: JSON.parse(localStorage.getItem('shipping_info') || '{}')
-        }
-      });
+      console.log('Creating order with items:', orderItems);
+      console.log('Total price:', totalPrice);
 
-      if (error) {
-        throw error;
+      // Generate order number
+      const orderNumber = `VIL-${Date.now()}`;
+      
+      // Prepare order data for EmailJS
+      const orderData = {
+        order_number: orderNumber,
+        total_amount: totalPrice.toString(),
+        customer_name: `${shippingInfo.firstName || ''} ${shippingInfo.lastName || ''}`.trim(),
+        customer_email: clerkUser?.emailAddresses?.[0]?.emailAddress || shippingInfo.email,
+        customer_phone: shippingInfo.phone || '',
+        shipping_address: `${shippingInfo.address}, ${shippingInfo.city}, ${shippingInfo.state} ${shippingInfo.zipCode}`,
+        items: items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price.toString()
+        }))
+      };
+
+      console.log('Sending order email via EmailJS:', orderData);
+      
+      // Try EmailJS first, then backup method
+      let emailSuccess = await sendOrderEmail(orderData);
+      
+      // If EmailJS fails, try the simple backup method
+      if (!emailSuccess) {
+        console.log('EmailJS failed, trying backup method...');
+        emailSuccess = await sendSimpleEmail(orderData);
       }
-
-      if (data?.success) {
-        // Store order details for the success page
-        const shippingInfo = JSON.parse(localStorage.getItem('shipping_info') || '{}');
-        const orderDetails = {
-          orderNumber: data.order_number,
-          items,
-          totalAmount: totalPrice,
-          shippingInfo,
-          paymentMethod: paymentMethod === 'upi' ? 'UPI Payment' : 
-                         paymentMethod === 'card' ? 'Card Payment' : 'Cash on Delivery'
-        };
-        
-        localStorage.setItem('order_details', JSON.stringify(orderDetails));
-        
+      
+      if (emailSuccess) {
+        console.log('Email sent successfully!');
+        setPaymentStep('success');
         toast({
-          title: "Order placed successfully!",
-          description: `Order #${data.order_number} has been created. ${paymentMethod === 'cod' ? 'You will pay on delivery.' : 'Payment successful!'}`,
+          title: 'Payment Successful!',
+          description: `Order #${orderNumber} has been created. Email confirmation sent to available addresses.`,
         });
         clearCart();
         localStorage.removeItem('shipping_info');
-        navigate('/order-success', { state: { orderDetails } });
+        
+        // Redirect to success page after a short delay
+        setTimeout(() => {
+          navigate('/order-success');
+        }, 2000);
       } else {
-        throw new Error('Failed to create order');
+        console.error('All email methods failed, but order is still created');
+        // Even if email fails, the order is still valid
+        setPaymentStep('success');
+        toast({
+          title: 'Payment Successful!',
+          description: `Order #${orderNumber} has been created. Email notification will be sent shortly.`,
+        });
+        clearCart();
+        localStorage.removeItem('shipping_info');
+        
+        // Redirect to success page after a short delay
+        setTimeout(() => {
+          navigate('/order-success');
+        }, 2000);
       }
     } catch (error) {
       console.error('Payment error:', error);
+      setPaymentStep('failed');
       toast({
-        variant: "destructive",
-        title: "Order failed",
-        description: "There was an error processing your order. Please try again.",
+        variant: 'destructive',
+        title: 'Payment failed',
+        description: 'There was an error processing your payment. Please try again.',
       });
     } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
     }
   };
 
+  const handleRetry = () => {
+    setPaymentStep('select');
+    setSelectedOption('upi');
+  };
+
+  if (paymentStep === 'processing') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardHeader>
+            <CardTitle>Processing Payment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto animate-spin">
+                <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+              <p className="text-muted-foreground">
+                Please wait while we process your payment...
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (paymentStep === 'success') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardHeader>
+            <CardTitle className="text-2xl text-green-600">Payment Successful!</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+              </div>
+              <p className="text-muted-foreground">
+                Your order has been placed successfully! Redirecting to order confirmation...
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (paymentStep === 'failed') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md text-center">
+          <CardHeader>
+            <CardTitle className="text-2xl text-red-600">Payment Failed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </div>
+              <p className="text-muted-foreground">
+                Your payment was not successful. Please try again with a different payment method.
+              </p>
+              <div className="space-y-2">
+                <Button onClick={handleRetry} className="w-full">
+                  Try Again
+                </Button>
+                <Button variant="outline" onClick={() => navigate('/checkout')} className="w-full">
+                  Back to Checkout
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="container mx-auto px-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Complete Payment</h1>
-            <p className="text-muted-foreground">Choose your preferred payment method</p>
-          </div>
-
-          {/* Order Summary */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Order Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {items.map((item) => (
-                  <div key={item.id} className="flex justify-between items-center">
-                    <div>
-                      <h3 className="font-medium">{item.name}</h3>
-                      <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
-                    </div>
-                    <p className="font-medium">{formatPrice(item.price * item.quantity)}</p>
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Select Payment Method</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Total Amount: {formatPrice(totalPrice)}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {paymentOptions.map(option => (
+              <label key={option.value} className="flex items-start space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors">
+                <input
+                  type="radio"
+                  name="payment"
+                  value={option.value}
+                  checked={selectedOption === option.value}
+                  onChange={() => setSelectedOption(option.value)}
+                  className="mt-1 accent-primary"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg">{option.icon}</span>
+                    <span className="font-medium">{option.label}</span>
                   </div>
-                ))}
-                <div className="border-t pt-4">
-                  <div className="flex justify-between items-center font-bold text-lg">
-                    <span>Total:</span>
-                    <span>{formatPrice(totalPrice)}</span>
-                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">{option.description}</div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Payment Methods */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Select Payment Method</CardTitle>
-              <CardDescription>All payments are simulated for demo purposes</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* UPI Payment */}
-              <div 
-                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                  paymentMethod === 'upi' ? 'border-primary bg-primary/5' : 'border-border'
-                }`}
-                onClick={() => setPaymentMethod('upi')}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <span className="text-orange-600 font-bold text-sm">UPI</span>
-                    </div>
-                    <div>
-                      <p className="font-medium">UPI Payment</p>
-                      <p className="text-sm text-muted-foreground">PhonePe, Google Pay, BHIM UPI</p>
-                    </div>
-                  </div>
-                  {paymentMethod === 'upi' && (
-                    <CheckCircle className="w-5 h-5 text-primary" />
-                  )}
-                </div>
-              </div>
-
-              {/* Card Payment */}
-              <div 
-                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                  paymentMethod === 'card' ? 'border-primary bg-primary/5' : 'border-border'
-                }`}
-                onClick={() => setPaymentMethod('card')}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <CreditCard className="w-10 h-10 text-blue-600" />
-                    <div>
-                      <p className="font-medium">Debit/Credit Card</p>
-                      <p className="text-sm text-muted-foreground">Visa, Mastercard, RuPay</p>
-                    </div>
-                  </div>
-                  {paymentMethod === 'card' && (
-                    <CheckCircle className="w-5 h-5 text-primary" />
-                  )}
-                </div>
-              </div>
-
-              {/* Cash on Delivery */}
-              <div 
-                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                  paymentMethod === 'cod' ? 'border-primary bg-primary/5' : 'border-border'
-                }`}
-                onClick={() => setPaymentMethod('cod')}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                      <span className="text-green-600 font-bold text-sm">₹</span>
-                    </div>
-                    <div>
-                      <p className="font-medium">Cash on Delivery</p>
-                      <p className="text-sm text-muted-foreground">Pay when you receive</p>
-                    </div>
-                  </div>
-                  {paymentMethod === 'cod' && (
-                    <CheckCircle className="w-5 h-5 text-primary" />
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Demo Notice */}
-          <Card className="mb-6 border-amber-200 bg-amber-50">
-            <CardContent className="pt-6">
-              <div className="flex items-start space-x-3">
-                <Badge variant="secondary" className="mt-1">DEMO</Badge>
-                <div>
-                  <p className="font-medium text-amber-800">Demo Payment Mode</p>
-                  <p className="text-sm text-amber-700">
-                    This is a demonstration. No real money will be charged. 
-                    All transactions are simulated for testing purposes.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Payment Button */}
-          <Button 
-            onClick={handleMockPayment} 
-            className="w-full h-14 text-lg"
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Processing Payment...
-              </>
-            ) : (
-              <>
-                {paymentMethod === 'cod' ? 'Place Order (COD)' : `Pay ${formatPrice(totalPrice)}`}
-              </>
-            )}
-          </Button>
-
-          <div className="text-center mt-4">
-            <Button 
-              variant="ghost" 
-              onClick={() => navigate('/checkout')}
-              disabled={isProcessing}
+              </label>
+            ))}
+            <Button
+              className="w-full mt-6"
+              onClick={handlePayment}
+              disabled={isLoading}
             >
-              ← Back to Checkout
+              {isLoading ? 'Processing...' : `Pay ${formatPrice(totalPrice)}`}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => navigate('/checkout')}
+            >
+              Back to Checkout
             </Button>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

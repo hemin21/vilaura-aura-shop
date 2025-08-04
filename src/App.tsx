@@ -18,6 +18,7 @@ import MockPayment from "./pages/MockPayment";
 import OrderSuccess from "./pages/OrderSuccess";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
+import TestEmailJS from "./pages/TestEmailJS";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
                   <Route path="/order-success" element={<OrderSuccess />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/admin" element={<Admin />} />
+                  <Route path="/test-emailjs" element={<TestEmailJS />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
