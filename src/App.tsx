@@ -20,6 +20,8 @@ import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import TestEmailJS from "./pages/TestEmailJS";
 import NotFound from "./pages/NotFound";
+import { UserDashboard } from "@/components/UserDashboard";
+import { Wishlist } from "@/pages/Wishlist";
 
 const queryClient = new QueryClient();
 
@@ -44,7 +46,8 @@ const App = () => (
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/mock-payment" element={<MockPayment />} />
                   <Route path="/order-success" element={<OrderSuccess />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/dashboard" element={<UserDashboard />} />
+                  <Route path="/wishlist" element={<Wishlist />} />
                   <Route path="/admin" element={<Admin />} />
                   <Route path="/test-emailjs" element={<TestEmailJS />} />
                   <Route path="*" element={<NotFound />} />

@@ -5,8 +5,9 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/context/CartContext';
 import { useToast } from '@/hooks/use-toast';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Star } from 'lucide-react';
 import { formatPrice } from '@/utils/validation';
+import { WishlistButton } from '@/components/WishlistButton';
 
 interface ProductCardProps {
   product: Product;
@@ -54,15 +55,26 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </Badge>
         </div>
       </CardContent>
-      <CardFooter className="p-4 pt-0">
-        <Button
-          onClick={handleAddToCart}
-          className="w-full"
-          variant="cart"
-        >
-          <ShoppingCart className="w-4 h-4 mr-2" />
-          Add to Cart
-        </Button>
+      <CardFooter className="p-4 pt-0 space-y-2">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star key={star} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+            ))}
+            <span className="text-sm text-muted-foreground ml-1">(4.5)</span>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleAddToCart}
+            className="flex-1"
+            variant="cart"
+          >
+            <ShoppingCart className="w-4 h-4 mr-2" />
+            Add to Cart
+          </Button>
+          <WishlistButton productId={product.id} />
+        </div>
       </CardFooter>
     </Card>
   );
