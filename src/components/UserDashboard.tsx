@@ -20,6 +20,10 @@ interface Order {
     quantity: number;
     price: number;
     product_id: string;
+    products: {
+      name: string;
+      image_url: string;
+    };
   }>;
 }
 
@@ -50,34 +54,44 @@ export const UserDashboard = () => {
     if (!user) return;
 
     try {
-      // Fetch orders
+      // Fetch orders with order items and product details
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select(`
           *,
-          order_items (quantity, price, product_id)
+          order_items (
+            quantity, 
+            price, 
+            product_id,
+            products (name, image_url)
+          )
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(10);
 
       if (ordersError) throw ordersError;
       setOrders(ordersData || []);
 
-      // Mock recently viewed data
-      const mockRecentData = [
-        {
-          id: '1',
-          viewed_at: '2024-01-15',
-          products: {
-            id: 'caffeeskin',
-            name: 'CAFFÉSKIN',
-            price: 50,
-            image_url: '/lovable-uploads/a470358d-bb23-48cf-a954-95f37d24b288.png'
-          }
-        }
-      ];
-      setRecentlyViewed(mockRecentData);
+      // Fetch recently viewed products
+      const { data: recentlyViewedData, error: recentError } = await supabase
+        .from('recently_viewed')
+        .select(`
+          *,
+          products (id, name, price, image_url)
+        `)
+        .eq('user_id', user.id)
+        .order('viewed_at', { ascending: false })
+        .limit(5);
+
+      if (recentError) {
+        console.error('Error fetching recently viewed:', recentError);
+        // Don't fail if recently viewed fails
+        setRecentlyViewed([]);
+      } else {
+        setRecentlyViewed(recentlyViewedData || []);
+      }
+
     } catch (error) {
       console.error('Error fetching user data:', error);
       toast.error('Failed to load dashboard data');

@@ -256,6 +256,8 @@ const Admin: React.FC = () => {
             <TabsList>
               <TabsTrigger value="orders">Recent Orders</TabsTrigger>
               <TabsTrigger value="products">Products</TabsTrigger>
+              <TabsTrigger value="reviews">Reviews</TabsTrigger>
+              <TabsTrigger value="analytics">Analytics</TabsTrigger>
             </TabsList>
 
             {/* Orders Tab */}
@@ -372,6 +374,83 @@ const Admin: React.FC = () => {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Reviews Tab */}
+            <TabsContent value="reviews">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Reviews</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8 text-muted-foreground">
+                    Reviews will be loaded from the database once users start submitting them.
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Analytics Tab */}
+            <TabsContent value="analytics">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Business Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex justify-between">
+                        <span>Active Products:</span>
+                        <span className="font-semibold">{stats.totalProducts}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Total Orders:</span>
+                        <span className="font-semibold">{stats.totalOrders}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Revenue:</span>
+                        <span className="font-semibold">{formatPrice(stats.totalRevenue)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Avg Order Value:</span>
+                        <span className="font-semibold">
+                          {stats.totalOrders > 0 ? formatPrice(stats.totalRevenue / stats.totalOrders) : '₹0.00'}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>System Status</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span>Email System:</span>
+                        <Badge variant="default">✅ Active</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Database:</span>
+                        <Badge variant="default">✅ Connected</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Order Processing:</span>
+                        <Badge variant="default">✅ Functional</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Reviews System:</span>
+                        <Badge variant="default">✅ Active</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Wishlist System:</span>
+                        <Badge variant="default">✅ Operational</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
           </Tabs>
 

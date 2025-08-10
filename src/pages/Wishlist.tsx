@@ -1,40 +1,94 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart, ShoppingCart, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 
+interface WishlistItem {
+  id: string;
+  product_id: string;
+  created_at: string;
+  products: {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    image_url: string;
+    category: string;
+    stock_quantity: number;
+    is_active: boolean;
+  };
+}
+
 export const Wishlist = () => {
-  const [wishlistItems] = useState([
-    {
-      id: '1',
-      product_id: 'caffeeskin',
-      created_at: '2024-01-15',
-      products: {
-        id: 'caffeeskin',
-        name: 'CAFFÉSKIN',
-        description: 'Energizing coffee-infused herbal soap',
-        price: 50,
-        image_url: '/lovable-uploads/a470358d-bb23-48cf-a954-95f37d24b288.png',
-        category: 'Herbal Soap',
-        stock_quantity: 10,
-        is_active: true
-      }
-    }
-  ]);
-  const [loading] = useState(false);
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { addToCart } = useCart();
 
-  const removeFromWishlist = async (wishlistId: string) => {
-    toast.info('Wishlist feature will be fully functional once database is ready');
+  useEffect(() => {
+    if (user) {
+      fetchWishlistItems();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
+
+  const fetchWishlistItems = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('wishlists')
+        .select(`
+          *,
+          products (
+            id,
+            name,
+            description,
+            price,
+            image_url,
+            category,
+            stock_quantity,
+            is_active
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setWishlistItems(data || []);
+    } catch (error) {
+      console.error('Error fetching wishlist:', error);
+      toast.error('Failed to load wishlist');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const moveToCart = (item: any) => {
+  const removeFromWishlist = async (wishlistId: string) => {
+    try {
+      const { error } = await supabase
+        .from('wishlists')
+        .delete()
+        .eq('id', wishlistId);
+
+      if (error) throw error;
+
+      setWishlistItems(prev => prev.filter(item => item.id !== wishlistId));
+      toast.success('Removed from wishlist');
+    } catch (error) {
+      console.error('Error removing from wishlist:', error);
+      toast.error('Failed to remove from wishlist');
+    }
+  };
+
+  const moveToCart = (item: WishlistItem) => {
     addToCart({
       id: item.products.id,
       name: item.products.name,
