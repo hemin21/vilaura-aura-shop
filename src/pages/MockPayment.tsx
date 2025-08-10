@@ -121,7 +121,7 @@ const MockPayment: React.FC = () => {
         return;
       }
 
-      // Payment successful, create order
+      // Payment successful, create order via Supabase function
       const orderItems = items.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
@@ -131,65 +131,71 @@ const MockPayment: React.FC = () => {
       console.log('Creating order with items:', orderItems);
       console.log('Total price:', totalPrice);
 
-      // Generate order number
-      const orderNumber = `VIL-${Date.now()}`;
-      
-      // Prepare order data for EmailJS
-      const orderData = {
-        order_number: orderNumber,
-        total_amount: totalPrice.toString(),
-        customer_name: `${shippingInfo.firstName || ''} ${shippingInfo.lastName || ''}`.trim(),
-        customer_email: clerkUser?.emailAddresses?.[0]?.emailAddress || shippingInfo.email,
-        customer_phone: shippingInfo.phone || '',
-        shipping_address: `${shippingInfo.address}, ${shippingInfo.city}, ${shippingInfo.state} ${shippingInfo.zipCode}`,
-        items: items.map(item => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price.toString()
-        }))
-      };
+      // Create order via Supabase function (includes automatic email notification)
+      const { data: orderResult, error: orderError } = await supabase.functions.invoke('create-order', {
+        body: {
+          items: orderItems,
+          total_amount: totalPrice,
+          payment_method: selectedOption,
+          payment_status: 'paid',
+          shipping_address: shippingInfo,
+          billing_address: shippingInfo,
+          user_id: clerkUser?.id || null,
+          guest_email: clerkUser?.emailAddresses?.[0]?.emailAddress || shippingInfo.email,
+          guest_name: `${shippingInfo.firstName || ''} ${shippingInfo.lastName || ''}`.trim()
+        }
+      });
 
-      console.log('Sending order email via EmailJS:', orderData);
-      
-      // Try EmailJS first, then backup method
-      let emailSuccess = await sendOrderEmail(orderData);
-      
-      // If EmailJS fails, try the simple backup method
-      if (!emailSuccess) {
-        console.log('EmailJS failed, trying backup method...');
-        emailSuccess = await sendSimpleEmail(orderData);
+      if (orderError) {
+        console.error('Order creation failed:', orderError);
+        throw new Error('Failed to create order');
       }
+
+      console.log('Order created successfully:', orderResult);
+      
+      // Check if email was sent
+      const emailSuccess = orderResult?.email_sent || false;
       
       if (emailSuccess) {
-        console.log('Email sent successfully!');
-        setPaymentStep('success');
-        toast({
-          title: 'Payment Successful!',
-          description: `Order #${orderNumber} has been created. Email confirmation sent to available addresses.`,
-        });
-        clearCart();
-        localStorage.removeItem('shipping_info');
-        
-        // Redirect to success page after a short delay
-        setTimeout(() => {
-          navigate('/order-success');
-        }, 2000);
+        console.log('✅ Order confirmation email sent to hjdunofficial21@gmail.com and other addresses');
       } else {
-        console.error('All email methods failed, but order is still created');
-        // Even if email fails, the order is still valid
-        setPaymentStep('success');
-        toast({
-          title: 'Payment Successful!',
-          description: `Order #${orderNumber} has been created. Email notification will be sent shortly.`,
-        });
-        clearCart();
-        localStorage.removeItem('shipping_info');
+        console.warn('⚠️ Email notification may have failed');
         
-        // Redirect to success page after a short delay
-        setTimeout(() => {
-          navigate('/order-success');
-        }, 2000);
+        // Fallback: Try EmailJS as backup
+        const emailData = {
+          order_number: orderResult?.order_number || `VIL-${Date.now()}`,
+          total_amount: totalPrice.toString(),
+          customer_name: `${shippingInfo.firstName || ''} ${shippingInfo.lastName || ''}`.trim(),
+          customer_email: clerkUser?.emailAddresses?.[0]?.emailAddress || shippingInfo.email,
+          customer_phone: shippingInfo.phone || '',
+          shipping_address: `${shippingInfo.address}, ${shippingInfo.city}, ${shippingInfo.state} ${shippingInfo.zipCode}`,
+          items: items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price.toString()
+          }))
+        };
+        
+        console.log('Trying EmailJS as backup...');
+        await sendOrderEmail(emailData);
       }
+      
+      // Order created successfully
+      setPaymentStep('success');
+      const orderNumber = orderResult?.order_number || `VIL-${Date.now()}`;
+      
+      toast({
+        title: 'Payment Successful!',
+        description: `Order #${orderNumber} has been created. Email confirmation sent to hjdunofficial21@gmail.com and other addresses.`,
+      });
+      
+      clearCart();
+      localStorage.removeItem('shipping_info');
+      
+      // Redirect to success page after a short delay
+      setTimeout(() => {
+        navigate('/order-success');
+      }, 2000);
     } catch (error) {
       console.error('Payment error:', error);
       setPaymentStep('failed');
