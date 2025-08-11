@@ -83,20 +83,26 @@ const MockPayment: React.FC = () => {
     return null;
   }
 
+  // Clear cart with invalid product IDs and redirect to home
+  const hasInvalidProductIds = items.some(item => !item.id.includes('-'));
+  if (hasInvalidProductIds) {
+    console.log('🧹 Clearing cart with invalid product IDs...');
+    clearCart();
+    toast({
+      title: 'Cart Updated',
+      description: 'Your cart has been updated with the latest product information. Please add items again.',
+    });
+    navigate('/');
+    return null;
+  }
+
   const simulatePayment = async (method: string): Promise<boolean> => {
     // Simulate payment processing delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // For demo purposes, make payments more reliable
-    const successRates = {
-      'upi': 0.99,      // 99% success rate
-      'card': 0.99,     // 99% success rate
-      'netbanking': 0.99, // 99% success rate
-      'cod': 1.0        // COD always succeeds
-    };
-    
-    const successRate = successRates[method as keyof typeof successRates] || 0.99;
-    return Math.random() < successRate;
+    // For demo purposes, ALWAYS SUCCESS to test the flow
+    console.log('💳 Payment simulation: ALWAYS SUCCESS for testing');
+    return true; // Always return true for testing
   };
 
   const handlePayment = async () => {
@@ -104,14 +110,18 @@ const MockPayment: React.FC = () => {
     setPaymentStep('processing');
     
     try {
-      console.log('Starting payment process...');
-      console.log('Payment method:', selectedOption);
-      console.log('Shipping info:', shippingInfo);
+      console.log('🚀 Starting payment process...');
+      console.log('💳 Payment method:', selectedOption);
+      console.log('📦 Cart items:', items);
+      console.log('🏠 Shipping info:', shippingInfo);
+      console.log('💰 Total price:', totalPrice);
       
       // Simulate payment processing
       const paymentSuccess = await simulatePayment(selectedOption);
+      console.log('💳 Payment simulation result:', paymentSuccess);
       
       if (!paymentSuccess) {
+        console.error('❌ Payment simulation failed');
         setPaymentStep('failed');
         toast({
           variant: 'destructive',
@@ -121,6 +131,8 @@ const MockPayment: React.FC = () => {
         return;
       }
 
+      console.log('✅ Payment simulation successful, creating order...');
+
       // Payment successful, create order via Supabase function
       const orderItems = items.map(item => ({
         product_id: item.id,
@@ -128,30 +140,52 @@ const MockPayment: React.FC = () => {
         price: item.price
       }));
 
-      console.log('Creating order with items:', orderItems);
-      console.log('Total price:', totalPrice);
+      console.log('📝 Order items prepared:', orderItems);
+
+      const orderPayload = {
+        items: orderItems,
+        total_amount: totalPrice,
+        payment_method: selectedOption,
+        payment_status: 'paid',
+        shipping_address: shippingInfo,
+        billing_address: shippingInfo,
+        user_id: clerkUser?.id || null,
+        guest_email: clerkUser?.emailAddresses?.[0]?.emailAddress || shippingInfo.email,
+        guest_name: `${shippingInfo.firstName || ''} ${shippingInfo.lastName || ''}`.trim()
+      };
+
+      console.log('📤 Sending order payload to create-order function:', orderPayload);
 
       // Create order via Supabase function (includes automatic email notification)
       const { data: orderResult, error: orderError } = await supabase.functions.invoke('create-order', {
-        body: {
-          items: orderItems,
-          total_amount: totalPrice,
-          payment_method: selectedOption,
-          payment_status: 'paid',
-          shipping_address: shippingInfo,
-          billing_address: shippingInfo,
-          user_id: clerkUser?.id || null,
-          guest_email: clerkUser?.emailAddresses?.[0]?.emailAddress || shippingInfo.email,
-          guest_name: `${shippingInfo.firstName || ''} ${shippingInfo.lastName || ''}`.trim()
-        }
+        body: orderPayload
       });
 
+      console.log('📥 Order creation response:', { orderResult, orderError });
+
       if (orderError) {
-        console.error('Order creation failed:', orderError);
-        throw new Error('Failed to create order');
+        console.error('❌ Order creation failed:', orderError);
+        setPaymentStep('failed');
+        toast({
+          variant: 'destructive',
+          title: 'Order Creation Failed',
+          description: `Failed to create order: ${orderError.message || 'Unknown error'}`,
+        });
+        return;
       }
 
-      console.log('Order created successfully:', orderResult);
+      if (!orderResult || !orderResult.success) {
+        console.error('❌ Order creation unsuccessful:', orderResult);
+        setPaymentStep('failed');
+        toast({
+          variant: 'destructive',
+          title: 'Order Creation Failed',
+          description: 'Failed to create order. Please try again.',
+        });
+        return;
+      }
+
+      console.log('✅ Order created successfully:', orderResult);
       
       // Check if email was sent
       const emailSuccess = orderResult?.email_sent || false;
@@ -159,25 +193,30 @@ const MockPayment: React.FC = () => {
       if (emailSuccess) {
         console.log('✅ Order confirmation email sent to hjdunofficial21@gmail.com and other addresses');
       } else {
-        console.warn('⚠️ Email notification may have failed');
+        console.warn('⚠️ Email notification may have failed, trying backup...');
         
-        // Fallback: Try EmailJS as backup
-        const emailData = {
-          order_number: orderResult?.order_number || `VIL-${Date.now()}`,
-          total_amount: totalPrice.toString(),
-          customer_name: `${shippingInfo.firstName || ''} ${shippingInfo.lastName || ''}`.trim(),
-          customer_email: clerkUser?.emailAddresses?.[0]?.emailAddress || shippingInfo.email,
-          customer_phone: shippingInfo.phone || '',
-          shipping_address: `${shippingInfo.address}, ${shippingInfo.city}, ${shippingInfo.state} ${shippingInfo.zipCode}`,
-          items: items.map(item => ({
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price.toString()
-          }))
-        };
-        
-        console.log('Trying EmailJS as backup...');
-        await sendOrderEmail(emailData);
+        try {
+          // Fallback: Try EmailJS as backup
+          const emailData = {
+            order_number: orderResult?.order_number || `VIL-${Date.now()}`,
+            total_amount: totalPrice.toString(),
+            customer_name: `${shippingInfo.firstName || ''} ${shippingInfo.lastName || ''}`.trim(),
+            customer_email: clerkUser?.emailAddresses?.[0]?.emailAddress || shippingInfo.email,
+            customer_phone: shippingInfo.phone || '',
+            shipping_address: `${shippingInfo.address}, ${shippingInfo.city}, ${shippingInfo.state} ${shippingInfo.zipCode}`,
+            items: items.map(item => ({
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price.toString()
+            }))
+          };
+          
+          console.log('📧 Trying EmailJS as backup...');
+          await sendOrderEmail(emailData);
+          console.log('✅ Backup email sent successfully');
+        } catch (emailError) {
+          console.warn('⚠️ Backup email also failed:', emailError);
+        }
       }
       
       // Order created successfully
@@ -198,29 +237,33 @@ const MockPayment: React.FC = () => {
         paymentMethod: selectedOption
       };
       
+      console.log('💾 Storing order details:', orderDetails);
       localStorage.setItem('order_details', JSON.stringify(orderDetails));
       
       toast({
-        title: 'Payment Successful!',
-        description: `Order #${orderNumber} has been created. Email confirmation sent to hjdunofficial21@gmail.com and other addresses.`,
+        title: 'Payment Successful! 🎉',
+        description: `Order #${orderNumber} has been created successfully!`,
       });
       
       clearCart();
       localStorage.removeItem('shipping_info');
       
+      console.log('🧹 Cart cleared and shipping info removed');
+      
       // Redirect to success page after a short delay
       setTimeout(() => {
+        console.log('🔄 Redirecting to order success page...');
         navigate('/order-success', { 
           state: { orderDetails } 
         });
       }, 2000);
     } catch (error) {
-      console.error('Payment error:', error);
+      console.error('💥 Payment error:', error);
       setPaymentStep('failed');
       toast({
         variant: 'destructive',
         title: 'Payment failed',
-        description: 'There was an error processing your payment. Please try again.',
+        description: `There was an error processing your payment: ${error instanceof Error ? error.message : 'Unknown error'}`,
       });
     } finally {
       setIsLoading(false);
