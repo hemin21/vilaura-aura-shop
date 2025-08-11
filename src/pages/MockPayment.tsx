@@ -184,6 +184,22 @@ const MockPayment: React.FC = () => {
       setPaymentStep('success');
       const orderNumber = orderResult?.order_number || `VIL-${Date.now()}`;
       
+      // Store order details for the success page
+      const orderDetails = {
+        orderNumber: orderNumber,
+        items: items.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        totalAmount: totalPrice,
+        shippingInfo: shippingInfo,
+        paymentMethod: selectedOption
+      };
+      
+      localStorage.setItem('order_details', JSON.stringify(orderDetails));
+      
       toast({
         title: 'Payment Successful!',
         description: `Order #${orderNumber} has been created. Email confirmation sent to hjdunofficial21@gmail.com and other addresses.`,
@@ -194,7 +210,9 @@ const MockPayment: React.FC = () => {
       
       // Redirect to success page after a short delay
       setTimeout(() => {
-        navigate('/order-success');
+        navigate('/order-success', { 
+          state: { orderDetails } 
+        });
       }, 2000);
     } catch (error) {
       console.error('Payment error:', error);
