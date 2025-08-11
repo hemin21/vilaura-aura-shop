@@ -87,15 +87,15 @@ const MockPayment: React.FC = () => {
     // Simulate payment processing delay
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Simulate different success rates based on payment method
+    // For demo purposes, make payments more reliable
     const successRates = {
-      'upi': 0.95,
-      'card': 0.90,
-      'netbanking': 0.85,
-      'cod': 1.0 // COD always succeeds
+      'upi': 0.99,      // 99% success rate
+      'card': 0.99,     // 99% success rate
+      'netbanking': 0.99, // 99% success rate
+      'cod': 1.0        // COD always succeeds
     };
     
-    const successRate = successRates[method as keyof typeof successRates] || 0.9;
+    const successRate = successRates[method as keyof typeof successRates] || 0.99;
     return Math.random() < successRate;
   };
 
