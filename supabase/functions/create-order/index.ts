@@ -44,6 +44,23 @@ serve(async (req) => {
     // Get request body
     const { items, total_amount, payment_method = 'upi', payment_status = 'paid', shipping_address, billing_address, user_id, guest_email, guest_name }: CreateOrderRequest = await req.json();
 
+    console.log('📝 Received order request:', { 
+      items_count: items.length, 
+      total_amount, 
+      payment_method, 
+      user_id, 
+      guest_email, 
+      guest_name 
+    });
+
+    // Handle Clerk user IDs (which are strings, not UUIDs)
+    // For now, we'll set user_id to null and store user info in shipping_address
+    const processedUserId = user_id && user_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? user_id : null;
+    
+    if (user_id && !processedUserId) {
+      console.log('📝 Clerk user ID detected (not UUID format), storing as guest order:', user_id);
+    }
+
     // Calculate total amount properly from items
     const calculatedTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     
@@ -55,15 +72,23 @@ serve(async (req) => {
     // Generate unique order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-    // Create order (user_id can be null for guest orders)
+    console.log('🔥 Creating order with processed user_id:', processedUserId);
+
+    // Create order (user_id set to null for Clerk users, info stored in shipping_address)
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        user_id: user_id || null,
+        user_id: processedUserId, // null for Clerk users
         order_number: orderNumber,
         total_amount: calculatedTotal, // Use calculated total instead of provided total
-        shipping_address,
-        billing_address: billing_address || shipping_address,
+        shipping_address: {
+          ...shipping_address,
+          clerk_user_id: user_id // Store original Clerk user ID here
+        },
+        billing_address: billing_address || {
+          ...shipping_address,
+          clerk_user_id: user_id
+        },
         status: payment_status === 'paid' ? 'confirmed' : 'pending',
         payment_status: payment_status
       })
@@ -72,7 +97,7 @@ serve(async (req) => {
 
     if (orderError) {
       console.error('Order creation error:', orderError);
-      throw new Error('Failed to create order');
+      throw new Error(`Order creation failed: ${orderError.message}`);
     }
 
     // Create order items
@@ -186,10 +211,14 @@ serve(async (req) => {
                       <p style="margin: 5px 0; font-weight: bold; color: #495057;">Phone:</p>
                       <p style="margin: 5px 0;"><a href="tel:${shipping_address.phone}" style="color: #8B5CF6; text-decoration: none;">${shipping_address.phone}</a></p>
                     </div>
-                    <div>
-                      <p style="margin: 5px 0; font-weight: bold; color: #495057;">Order Type:</p>
-                      <p style="margin: 5px 0; color: #495057;">${user_id ? 'Registered User' : 'Guest Order'}</p>
-                    </div>
+                     <div>
+                       <p style="margin: 5px 0; font-weight: bold; color: #495057;">Order Type:</p>
+                       <p style="margin: 5px 0; color: #495057;">${user_id ? `Authenticated User (${user_id})` : 'Guest Order'}</p>
+                     </div>
+                     <div>
+                       <p style="margin: 5px 0; font-weight: bold; color: #495057;">User ID:</p>
+                       <p style="margin: 5px 0; color: #495057; font-family: monospace; font-size: 12px;">${user_id || 'Guest'}</p>
+                     </div>
                   </div>
                 </div>
 
@@ -271,6 +300,16 @@ serve(async (req) => {
       console.log('To enable email notifications, set the RESEND_API_KEY environment variable.');
     }
 
+    console.log('✅ Order created successfully:', {
+      order_id: order.id,
+      order_number: orderNumber,
+      customer: guest_name || `${shipping_address.firstName} ${shipping_address.lastName}`,
+      total: calculatedTotal,
+      items_count: items.length,
+      user_id: user_id,
+      processed_user_id: processedUserId
+    });
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -279,7 +318,9 @@ serve(async (req) => {
         email_sent: !!resend && !!resendApiKey,
         total_amount: calculatedTotal,
         payment_method: payment_method,
-        customer_name: guest_name || `${shipping_address.firstName || ''} ${shipping_address.lastName || ''}`.trim()
+        customer_name: guest_name || `${shipping_address.firstName || ''} ${shipping_address.lastName || ''}`.trim(),
+        user_id: user_id,
+        processed_user_id: processedUserId
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
