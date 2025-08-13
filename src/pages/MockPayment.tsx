@@ -98,11 +98,10 @@ const MockPayment: React.FC = () => {
 
   const simulatePayment = async (method: string): Promise<boolean> => {
     // Simulate payment processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // For demo purposes, ALWAYS SUCCESS to test the flow
-    console.log('💳 Payment simulation: ALWAYS SUCCESS for testing');
-    return true; // Always return true for testing
+    console.log('💳 Payment simulation: 100% SUCCESS for testing');
+    return true; // Always return true for comprehensive testing
   };
 
   const handlePayment = async () => {
@@ -115,8 +114,30 @@ const MockPayment: React.FC = () => {
       console.log('📦 Cart items:', items);
       console.log('🏠 Shipping info:', shippingInfo);
       console.log('💰 Total price:', totalPrice);
+      console.log('👤 Clerk user:', clerkUser);
       
-      // Simulate payment processing
+      // Validate cart items have valid UUIDs
+      const validItems = items.filter(item => {
+        const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.id);
+        if (!isValidUUID) {
+          console.error('❌ Invalid product ID detected:', item.id, item.name);
+        }
+        return isValidUUID;
+      });
+
+      if (validItems.length !== items.length) {
+        console.error('❌ Some items have invalid product IDs, clearing cart...');
+        clearCart();
+        toast({
+          variant: 'destructive',
+          title: 'Cart Error',
+          description: 'Your cart contains invalid items. Please add products again.',
+        });
+        navigate('/');
+        return;
+      }
+      
+      // Simulate payment processing (100% success for testing)
       const paymentSuccess = await simulatePayment(selectedOption);
       console.log('💳 Payment simulation result:', paymentSuccess);
       
@@ -134,13 +155,18 @@ const MockPayment: React.FC = () => {
       console.log('✅ Payment simulation successful, creating order...');
 
       // Payment successful, create order via Supabase function
-      const orderItems = items.map(item => ({
+      const orderItems = validItems.map(item => ({
         product_id: item.id,
         quantity: item.quantity,
         price: item.price
       }));
 
       console.log('📝 Order items prepared:', orderItems);
+      console.log('🔍 Validating order data...');
+      console.log('- Items count:', orderItems.length);
+      console.log('- Total amount:', totalPrice);
+      console.log('- User ID:', clerkUser?.id);
+      console.log('- Guest email:', clerkUser?.emailAddresses?.[0]?.emailAddress);
 
       const orderPayload = {
         items: orderItems,
@@ -157,6 +183,7 @@ const MockPayment: React.FC = () => {
       console.log('📤 Sending order payload to create-order function:', orderPayload);
 
       // Create order via Supabase function (includes automatic email notification)
+      console.log('🚀 Invoking create-order function...');
       const { data: orderResult, error: orderError } = await supabase.functions.invoke('create-order', {
         body: orderPayload
       });
@@ -164,23 +191,35 @@ const MockPayment: React.FC = () => {
       console.log('📥 Order creation response:', { orderResult, orderError });
 
       if (orderError) {
-        console.error('❌ Order creation failed:', orderError);
+        console.error('❌ Order creation failed with error:', orderError);
+        console.error('❌ Error details:', JSON.stringify(orderError, null, 2));
         setPaymentStep('failed');
         toast({
           variant: 'destructive',
           title: 'Order Creation Failed',
-          description: `Failed to create order: ${orderError.message || 'Unknown error'}`,
+          description: `Error: ${orderError.message || 'Network or server error'}. Please try again.`,
         });
         return;
       }
 
-      if (!orderResult || !orderResult.success) {
+      if (!orderResult) {
+        console.error('❌ No response from order creation function');
+        setPaymentStep('failed');
+        toast({
+          variant: 'destructive',
+          title: 'Order Creation Failed',
+          description: 'No response from server. Please check your connection and try again.',
+        });
+        return;
+      }
+
+      if (!orderResult.success) {
         console.error('❌ Order creation unsuccessful:', orderResult);
         setPaymentStep('failed');
         toast({
           variant: 'destructive',
           title: 'Order Creation Failed',
-          description: 'Failed to create order. Please try again.',
+          description: `Server error: ${orderResult.error || 'Unknown error'}. Please try again.`,
         });
         return;
       }
