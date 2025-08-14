@@ -28,14 +28,17 @@ const OrderSuccess: React.FC = () => {
   useEffect(() => {
     // Get order details from localStorage or location state
     const savedOrderDetails = localStorage.getItem('order_details');
-    if (savedOrderDetails) {
+    if (savedOrderDetails && !orderDetails) {
       setOrderDetails(JSON.parse(savedOrderDetails));
       localStorage.removeItem('order_details'); // Clean up
-    } else if (location.state?.orderDetails) {
+    } else if (location.state?.orderDetails && !orderDetails) {
       setOrderDetails(location.state.orderDetails);
     }
-    clearCart(); // Clear cart on success page
-  }, [clearCart, location.state]);
+    // Clear cart only once when order details are set
+    if (orderDetails) {
+      clearCart();
+    }
+  }, [clearCart, location.state, orderDetails]); // Fixed dependencies
 
   const downloadBill = () => {
     if (!orderDetails) return;

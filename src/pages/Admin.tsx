@@ -256,6 +256,7 @@ const Admin: React.FC = () => {
             <TabsList>
               <TabsTrigger value="orders">Recent Orders</TabsTrigger>
               <TabsTrigger value="products">Products</TabsTrigger>
+              <TabsTrigger value="owner-notifications">Owner Dashboard</TabsTrigger>
               <TabsTrigger value="reviews">Reviews</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
             </TabsList>
@@ -374,6 +375,23 @@ const Admin: React.FC = () => {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Owner Notifications Tab */}
+            <TabsContent value="owner-notifications">
+              <div style={{ width: '100%', height: '600px' }}>
+                <iframe 
+                  src="/owner-dashboard" 
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    border: 'none',
+                    borderRadius: '8px',
+                    backgroundColor: 'white'
+                  }}
+                  title="Owner Dashboard"
+                />
+              </div>
             </TabsContent>
 
             {/* Reviews Tab */}

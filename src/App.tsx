@@ -18,6 +18,7 @@ import MockPayment from "./pages/MockPayment";
 import OrderSuccess from "./pages/OrderSuccess";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
+import OwnerDashboard from "@/components/OwnerDashboard";
 import TestEmailJS from "./pages/TestEmailJS";
 import NotFound from "./pages/NotFound";
 import { UserDashboard } from "@/components/UserDashboard";
@@ -49,7 +50,8 @@ const App = () => (
                   <Route path="/dashboard" element={<UserDashboard />} />
                   <Route path="/wishlist" element={<Wishlist />} />
                   <Route path="/admin" element={<Admin />} />
-                  <Route path="/test-emailjs" element={<TestEmailJS />} />
+            <Route path="/owner-dashboard" element={<OwnerDashboard />} />
+            <Route path="/test-emailjs" element={<TestEmailJS />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
