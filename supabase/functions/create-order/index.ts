@@ -300,6 +300,28 @@ serve(async (req) => {
       console.log('To enable email notifications, set the RESEND_API_KEY environment variable.');
     }
 
+    // Send owner notification to database and console
+    try {
+      const { error: notificationError } = await supabase.functions.invoke('send-simple-notification', {
+        body: {
+          order_number: orderNumber,
+          customer_name: guest_name || `${shipping_address.firstName || ''} ${shipping_address.lastName || ''}`.trim(),
+          customer_email: guest_email || shipping_address.email,
+          total_amount: calculatedTotal,
+          items: itemsWithNames,
+          shipping_address: shipping_address
+        }
+      });
+
+      if (notificationError) {
+        console.error('Error sending owner notification:', notificationError);
+      } else {
+        console.log('✅ Owner notification stored in database and logged');
+      }
+    } catch (notifError) {
+      console.error('Failed to send owner notification:', notifError);
+    }
+
     console.log('✅ Order created successfully:', {
       order_id: order.id,
       order_number: orderNumber,
