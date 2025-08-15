@@ -1,11 +1,25 @@
-// 🧪 SIMPLE EMAILJS ORDER TEST - COPY TO BROWSER CONSOLE
-// Go to your website and paste this in browser console (F12)
+// 🧪 WORKING EMAILJS TEST - COPY TO BROWSER CONSOLE
+// 1. Go to your website
+// 2. Open browser console (F12)
+// 3. Paste this entire code
 
 console.log('🚀 Testing EmailJS Order System...');
 
-const testOrderFlow = async () => {
+async function testEmailJSOrder() {
   try {
     console.log('📝 Creating test order...');
+    
+    // Import supabase from window (already loaded on your site)
+    const { createClient } = window.supabase || {};
+    if (!createClient) {
+      console.error('❌ Supabase not found on window');
+      return;
+    }
+    
+    const supabase = createClient(
+      'https://ttynpoekdlemfriqvhte.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0eW5wb2VrZGxlbWZyaXF2aHRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM0NjgyNzgsImV4cCI6MjA2OTA0NDI3OH0.GYI6o7OrqXa4vgCXEKKTU-YX3AXn4EZGQFJnXfzzfJY'
+    );
     
     // Test order data
     const orderData = {
@@ -53,10 +67,10 @@ const testOrderFlow = async () => {
     console.error('❌ Test failed:', error);
     return false;
   }
-};
+}
 
-// Run the test
-testOrderFlow().then(success => {
+// Run the test automatically
+testEmailJSOrder().then(success => {
   if (success) {
     console.log('🎉 TEST COMPLETED SUCCESSFULLY!');
     console.log('💡 Check your emails and owner dashboard at /owner-dashboard');
