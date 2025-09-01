@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckCircle, Package, Clock, Eye } from 'lucide-react';
+import { CheckCircle, Package, Clock, Eye, Truck, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface OwnerNotification {
@@ -37,6 +37,30 @@ export default function OwnerDashboard() {
   useEffect(() => {
     fetchNotifications();
     fetchOrders();
+    
+    // Set up real-time notifications
+    const channel = supabase
+      .channel('owner-notifications')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'owner_notifications' },
+        (payload) => {
+          toast.success(`🔔 New Order: ${payload.new.order_number}`);
+          fetchNotifications();
+        }
+      )
+      .subscribe();
+
+    // Refresh data every 30 seconds
+    const interval = setInterval(() => {
+      fetchNotifications();
+      fetchOrders();
+    }, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
   }, []);
 
   const fetchNotifications = async () => {
@@ -116,6 +140,29 @@ export default function OwnerDashboard() {
     }
   };
 
+  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+
+      if (error) throw error;
+      
+      toast.success(`Order status updated to ${newStatus}`);
+      fetchOrders();
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast.error('Failed to update order status');
+    }
+  };
+
+  const refreshData = () => {
+    fetchNotifications();
+    fetchOrders();
+    toast.success('Data refreshed');
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -125,19 +172,81 @@ export default function OwnerDashboard() {
   }
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
+  const confirmedOrders = orders.filter(order => order.status === 'confirmed');
+  const pendingOrders = orders.filter(order => order.status === 'pending');
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Owner Dashboard</h1>
-        <p className="text-gray-600 mt-2">Monitor your orders and notifications</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">🌿 VilĀura Owner Dashboard</h1>
+            <p className="text-gray-600 mt-2">Monitor your orders and process deliveries</p>
+          </div>
+          <Button onClick={refreshData} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+        
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-green-600">{confirmedOrders.length}</p>
+                  <p className="text-sm text-gray-600">Confirmed Orders</p>
+                </div>
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-yellow-600">{pendingOrders.length}</p>
+                  <p className="text-sm text-gray-600">Pending Orders</p>
+                </div>
+                <Clock className="h-8 w-8 text-yellow-600" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-red-600">{unreadCount}</p>
+                  <p className="text-sm text-gray-600">New Notifications</p>
+                </div>
+                <AlertCircle className="h-8 w-8 text-red-600" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-blue-600">{orders.length}</p>
+                  <p className="text-sm text-gray-600">Total Orders</p>
+                </div>
+                <Package className="h-8 w-8 text-blue-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      <Tabs defaultValue="notifications" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
+      <Tabs defaultValue="confirmed-orders" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="confirmed-orders" className="flex items-center gap-2">
             <CheckCircle className="h-4 w-4" />
-            Notifications
+            Ready to Ship ({confirmedOrders.length})
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            New Notifications
             {unreadCount > 0 && (
               <Badge variant="destructive" className="ml-2">
                 {unreadCount}
@@ -149,6 +258,95 @@ export default function OwnerDashboard() {
             All Orders ({orders.length})
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="confirmed-orders" className="space-y-4">
+          <Card className="border-green-200 bg-green-50">
+            <CardHeader>
+              <CardTitle className="text-green-800">📦 Orders Ready for Processing</CardTitle>
+              <p className="text-green-700 text-sm">These orders are confirmed and paid. Process them for delivery!</p>
+            </CardHeader>
+          </Card>
+          
+          <div className="grid gap-4">
+            {confirmedOrders.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6">
+                  <p className="text-center text-gray-500">No confirmed orders ready for shipping</p>
+                </CardContent>
+              </Card>
+            ) : (
+              confirmedOrders.map((order) => (
+                <Card key={order.id} className="border-green-200">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg text-green-700">
+                        🚀 {order.order_number}
+                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-green-100 text-green-800">
+                          READY TO SHIP
+                        </Badge>
+                        <Badge variant="outline">
+                          ₹{order.total_amount}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Customer</p>
+                        <p className="font-medium">
+                          {order.shipping_address?.firstName} {order.shipping_address?.lastName}
+                        </p>
+                        <p className="text-sm text-gray-500">{order.shipping_address?.email}</p>
+                        <p className="text-sm text-gray-500">📞 {order.shipping_address?.phone}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Payment Status</p>
+                        <Badge variant={order.payment_status === 'paid' ? 'default' : 'secondary'}>
+                          {order.payment_status}
+                        </Badge>
+                        <p className="text-xs text-gray-500 mt-1">Order Time</p>
+                        <p className="text-xs">{formatDate(order.created_at)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Actions</p>
+                        <div className="flex flex-col gap-2 mt-1">
+                          <Button 
+                            onClick={() => updateOrderStatus(order.id, 'shipped')}
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            <Truck className="h-4 w-4 mr-1" />
+                            Mark as Shipped
+                          </Button>
+                          <Button 
+                            onClick={() => updateOrderStatus(order.id, 'delivered')}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Mark as Delivered
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-sm font-medium text-gray-600 mb-1">📍 Shipping Address</p>
+                      <p className="text-sm text-gray-700">
+                        {order.shipping_address?.address}<br/>
+                        {order.shipping_address?.city}, {order.shipping_address?.state} {order.shipping_address?.zipCode}<br/>
+                        {order.shipping_address?.country}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </TabsContent>
 
         <TabsContent value="notifications" className="space-y-4">
           <div className="grid gap-4">
