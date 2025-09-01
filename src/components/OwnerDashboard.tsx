@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckCircle, Package, Clock, Eye, Truck, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle, Package, Clock, Eye, Truck, AlertCircle, RefreshCw, BarChart3, Bell } from 'lucide-react';
 import { toast } from 'sonner';
+import OwnerAnalytics from './OwnerAnalytics';
 
 interface OwnerNotification {
   id: string;
@@ -239,14 +240,14 @@ export default function OwnerDashboard() {
       </div>
 
       <Tabs defaultValue="confirmed-orders" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="confirmed-orders" className="flex items-center gap-2">
             <CheckCircle className="h-4 w-4" />
             Ready to Ship ({confirmedOrders.length})
           </TabsTrigger>
           <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4" />
-            New Notifications
+            <Bell className="h-4 w-4" />
+            Notifications
             {unreadCount > 0 && (
               <Badge variant="destructive" className="ml-2">
                 {unreadCount}
@@ -256,6 +257,10 @@ export default function OwnerDashboard() {
           <TabsTrigger value="orders" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             All Orders ({orders.length})
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Analytics
           </TabsTrigger>
         </TabsList>
 
@@ -494,6 +499,10 @@ export default function OwnerDashboard() {
               ))
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="analytics">
+          <OwnerAnalytics />
         </TabsContent>
       </Tabs>
     </div>
