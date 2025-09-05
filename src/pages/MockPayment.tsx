@@ -184,7 +184,7 @@ const MockPayment: React.FC = () => {
 
       // Create order via Supabase function (includes automatic email notification)
       console.log('🚀 Invoking create-order function...');
-      const { data: orderResult, error: orderError } = await supabase.functions.invoke('create-order', {
+      const { data: orderResult, error: orderError } = await supabase.functions.invoke('send-order-notification-nodemailer', {
         body: orderPayload
       });
 
