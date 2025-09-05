@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { Resend } from "npm:resend@2.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,6 +31,14 @@ serve(async (req) => {
   }
 
   try {
+    // Get Resend API key
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    if (!resendApiKey) {
+      throw new Error('RESEND_API_KEY not configured');
+    }
+    
+    const resend = new Resend(resendApiKey);
+
     // Create Supabase client with service role key
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -37,7 +46,7 @@ serve(async (req) => {
 
     const { items, total_amount, payment_method = 'upi', payment_status = 'paid', shipping_address, billing_address, user_id, guest_email, guest_name }: CreateOrderRequest = await req.json();
 
-    console.log('📝 Received order request via Nodemailer function:', { 
+    console.log('📝 Received order request via RESEND system:', { 
       items_count: items.length, 
       total_amount, 
       payment_method, 
@@ -63,7 +72,7 @@ serve(async (req) => {
     // Generate unique order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-    console.log('🔥 Creating order with Nodemailer integration:', orderNumber);
+    console.log('🔥 Creating order with RESEND email integration:', orderNumber);
 
     // Create order
     const { data: order, error: orderError } = await supabase
@@ -131,16 +140,9 @@ serve(async (req) => {
 
     const customerName = guest_name || `${shipping_address.firstName || ''} ${shipping_address.lastName || ''}`.trim();
 
-    // Send email using Nodemailer through SMTP
+    // Send email using RESEND (proper server-side email service)
     try {
-      console.log('📧 Sending owner notification email via Nodemailer...');
-      
-      const gmailUser = Deno.env.get('GMAIL_USER');
-      const gmailPass = Deno.env.get('GMAIL_PASS');
-      
-      if (!gmailUser || !gmailPass) {
-        throw new Error('Gmail credentials not configured');
-      }
+      console.log('📧 Sending owner notification email via RESEND...');
 
       // Generate detailed HTML email
       const emailHTML = `
@@ -285,63 +287,26 @@ serve(async (req) => {
         </html>
       `;
 
-      // Use fetch to send email via external SMTP service (Nodemailer alternative)
-      const emailPayload = {
-        to: 'hjdunofficial21@gmail.com',
-        from: gmailUser,
+      // Send email using RESEND
+      const emailResponse = await resend.emails.send({
+        from: 'VilĀura Store <onboarding@resend.dev>',
+        to: ['hjdunofficial21@gmail.com'],
         subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
         html: emailHTML,
-        text: `NEW ORDER RECEIVED!\n\nOrder #${orderNumber}\nCustomer: ${customerName}\nTotal: ₹${calculatedTotal.toFixed(2)}\nPayment: ${payment_method}\n\nItems:\n${itemsWithNames.map(item => `- ${item.name} x${item.quantity} = ₹${(item.price * item.quantity).toFixed(2)}`).join('\n')}\n\nShipping Address:\n${shipping_address.address}, ${shipping_address.city}, ${shipping_address.state} ${shipping_address.zipCode}\n\nPhone: ${shipping_address.phone}\nEmail: ${guest_email || shipping_address.email}`,
-        gmail_user: gmailUser,
-        gmail_pass: gmailPass
-      };
-
-      // Send via external email service (simulating Nodemailer)
-      const emailResponse = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          service_id: 'service_6ya4r19',
-          template_id: 'template_2wpde8b',
-          user_id: 'xhg0ooMMPVNWY55Rl',
-          template_params: {
-            to_email: 'hjdunofficial21@gmail.com',
-            subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
-            order_number: orderNumber,
-            total_amount: calculatedTotal.toFixed(2),
-            customer_name: customerName,
-            customer_email: guest_email || shipping_address.email,
-            customer_phone: shipping_address.phone,
-            shipping_address: `${shipping_address.address}, ${shipping_address.city}, ${shipping_address.state} ${shipping_address.zipCode}, ${shipping_address.country}`,
-            order_items: itemsWithNames.map(item => 
-              `${item.name} - Qty: ${item.quantity} - ₹${item.price.toFixed(2)} = ₹${(item.price * item.quantity).toFixed(2)}`
-            ).join('\n'),
-            order_date: new Date().toLocaleString('en-IN'),
-            bill_html: emailHTML,
-            message: `🚨 URGENT: New order #${orderNumber} received via Nodemailer system! 
-
-Customer: ${customerName}
-Total: ₹${calculatedTotal.toFixed(2)}
-Payment: ${payment_method} - ${payment_status}
-
-This email was sent using our reliable Nodemailer-based system for 100% delivery guarantee.
-
-Action Required: Process this order within 1-2 business days.`
-          }
-        })
+        text: `NEW ORDER RECEIVED!\n\nOrder #${orderNumber}\nCustomer: ${customerName}\nTotal: ₹${calculatedTotal.toFixed(2)}\nPayment: ${payment_method}\n\nItems:\n${itemsWithNames.map(item => `- ${item.name} x${item.quantity} = ₹${(item.price * item.quantity).toFixed(2)}`).join('\n')}\n\nShipping Address:\n${shipping_address.address}, ${shipping_address.city}, ${shipping_address.state} ${shipping_address.zipCode}\n\nPhone: ${shipping_address.phone}\nEmail: ${guest_email || shipping_address.email}`
       });
 
-      if (emailResponse.ok) {
-        console.log('✅ NODEMAILER EMAIL SENT SUCCESSFULLY to hjdunofficial21@gmail.com');
+      if (emailResponse.error) {
+        console.error('❌ RESEND email failed:', emailResponse.error);
+        throw new Error(`Email failed: ${emailResponse.error.message}`);
       } else {
-        const errorText = await emailResponse.text();
-        console.error('❌ Nodemailer email failed:', errorText);
+        console.log('✅ RESEND EMAIL SENT SUCCESSFULLY to hjdunofficial21@gmail.com');
+        console.log('📧 Email ID:', emailResponse.data?.id);
       }
 
     } catch (emailError) {
-      console.error('❌ Failed to send Nodemailer email:', emailError);
+      console.error('❌ Failed to send RESEND email:', emailError);
+      // Continue with order processing even if email fails
     }
 
     // Store notification in database
@@ -373,13 +338,13 @@ Action Required: Process this order within 1-2 business days.`
       console.error('Failed to store notification:', notifError);
     }
 
-    console.log('✅ Order created successfully with Nodemailer:', {
+    console.log('✅ Order created successfully with RESEND:', {
       order_id: order.id,
       order_number: orderNumber,
       customer: customerName,
       total: calculatedTotal,
       items_count: items.length,
-      email_system: 'NODEMAILER'
+      email_system: 'RESEND'
     });
 
     return new Response(
@@ -388,7 +353,7 @@ Action Required: Process this order within 1-2 business days.`
         order_id: order.id,
         order_number: orderNumber,
         email_sent: true,
-        email_system: 'NODEMAILER',
+        email_system: 'RESEND',
         total_amount: calculatedTotal,
         payment_method: payment_method,
         customer_name: customerName,
@@ -402,11 +367,11 @@ Action Required: Process this order within 1-2 business days.`
     );
 
   } catch (error) {
-    console.error('Error in Nodemailer order function:', error);
+    console.error('Error in RESEND order function:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message || 'Internal server error',
-        email_system: 'NODEMAILER'
+        email_system: 'RESEND'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
