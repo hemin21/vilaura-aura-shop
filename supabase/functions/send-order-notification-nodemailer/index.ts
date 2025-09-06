@@ -287,46 +287,72 @@ serve(async (req) => {
       </html>
     `;
 
-    // Method 1: Send via RESEND - Individual emails to ensure both owners receive
+    // Method 1: Send via RESEND to primary owner
+    let primaryEmailSent = false;
+    let secondaryEmailSent = false;
+    
     try {
-      console.log('📧 Sending owner notification emails via RESEND...');
+      console.log('📧 Sending to primary owner via RESEND...');
       
-      const emailRecipients = ['hjdunofficial21@gmail.com', 'aksharthakkar774@gmail.com'];
-      let emailsSent = 0;
+      const primaryEmailResponse = await resend.emails.send({
+        from: 'VilĀura Store <onboarding@resend.dev>',
+        to: ['hjdunofficial21@gmail.com'],
+        subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
+        html: emailHTML,
+        text: `NEW ORDER RECEIVED!\n\nOrder #${orderNumber}\nCustomer: ${customerName}\nTotal: ₹${calculatedTotal.toFixed(2)}\nPayment: ${payment_method}\n\nItems:\n${itemsWithNames.map(item => `- ${item.name} x${item.quantity} = ₹${(item.price * item.quantity).toFixed(2)}`).join('\n')}\n\nShipping Address:\n${shipping_address.address}, ${shipping_address.city}, ${shipping_address.state} ${shipping_address.zipCode}\n\nPhone: ${shipping_address.phone}\nEmail: ${guest_email || shipping_address.email}`
+      });
 
-      for (const recipient of emailRecipients) {
-        try {
-          const emailResponse = await resend.emails.send({
-            from: 'VilĀura Store <onboarding@resend.dev>',
-            to: [recipient],
-            subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
-            html: emailHTML,
-            text: `NEW ORDER RECEIVED!\n\nOrder #${orderNumber}\nCustomer: ${customerName}\nTotal: ₹${calculatedTotal.toFixed(2)}\nPayment: ${payment_method}\n\nItems:\n${itemsWithNames.map(item => `- ${item.name} x${item.quantity} = ₹${(item.price * item.quantity).toFixed(2)}`).join('\n')}\n\nShipping Address:\n${shipping_address.address}, ${shipping_address.city}, ${shipping_address.state} ${shipping_address.zipCode}\n\nPhone: ${shipping_address.phone}\nEmail: ${guest_email || shipping_address.email}`
-          });
-
-          if (emailResponse.error) {
-            console.error(`❌ RESEND email failed for ${recipient}:`, emailResponse.error);
-          } else {
-            console.log(`✅ RESEND EMAIL SENT SUCCESSFULLY to ${recipient}`);
-            console.log(`📧 Email ID for ${recipient}:`, emailResponse.data?.id);
-            emailsSent++;
-          }
-        } catch (recipientError) {
-          console.error(`❌ Failed to send RESEND email to ${recipient}:`, recipientError);
-        }
-      }
-
-      if (emailsSent > 0) {
-        console.log(`✅ RESEND: ${emailsSent}/${emailRecipients.length} emails sent successfully`);
+      if (primaryEmailResponse.error) {
+        console.error('❌ RESEND failed for primary owner:', primaryEmailResponse.error);
+      } else {
+        console.log('✅ RESEND EMAIL SENT to hjdunofficial21@gmail.com');
+        primaryEmailSent = true;
         emailSentSuccessfully = true;
       }
-
-    } catch (emailError) {
-      console.error('❌ Failed to send RESEND emails:', emailError);
+    } catch (error) {
+      console.error('❌ Primary RESEND email failed:', error);
     }
 
-    // Method 2: Send via Gmail SMTP as backup
-    if (!emailSentSuccessfully) {
+    // Method 2: Send to secondary owner via Gmail SMTP (since Resend limits recipients)
+    try {
+      console.log('📧 Sending to secondary owner via Gmail SMTP...');
+      
+      const gmailUser = Deno.env.get('GMAIL_USER_SECONDARY');
+      const gmailPass = Deno.env.get('GMAIL_PASS_SECONDARY');
+      
+      if (!gmailUser || !gmailPass) {
+        console.error('❌ Gmail credentials not configured for secondary owner');
+      } else {
+        const smtpClient = new SMTPClient({
+          connection: {
+            hostname: "smtp.gmail.com",
+            port: 587,
+            tls: true,
+            auth: {
+              username: gmailUser,
+              password: gmailPass,
+            },
+          },
+        });
+
+        await smtpClient.send({
+          from: `VilĀura Store <${gmailUser}>`,
+          to: "aksharthakkar774@gmail.com",
+          subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
+          html: emailHTML,
+        });
+
+        await smtpClient.close();
+        console.log('✅ GMAIL SMTP EMAIL SENT to aksharthakkar774@gmail.com');
+        secondaryEmailSent = true;
+        emailSentSuccessfully = true;
+      }
+    } catch (gmailError) {
+      console.error('❌ Gmail SMTP for secondary owner failed:', gmailError);
+    }
+
+    // Method 3: Fallback Gmail SMTP for both if needed
+    if (!primaryEmailSent || !secondaryEmailSent) {
       try {
         console.log('📧 RESEND failed, trying Gmail SMTP as backup...');
         
