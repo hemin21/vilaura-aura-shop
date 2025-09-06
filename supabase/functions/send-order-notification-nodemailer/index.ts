@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { Resend } from "npm:resend@2.0.0";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -140,154 +141,156 @@ serve(async (req) => {
 
     const customerName = guest_name || `${shipping_address.firstName || ''} ${shipping_address.lastName || ''}`.trim();
 
-    // Send email using RESEND (proper server-side email service)
+    // Dual Email System: RESEND + Gmail SMTP for maximum reliability
+    let emailSentSuccessfully = false;
+    
+    // Generate detailed HTML email
+    const emailHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>VilĀura - NEW ORDER #${orderNumber}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 0; padding: 40px; color: #333; line-height: 1.6; background-color: #f8f9fa; }
+          .container { background: white; max-width: 800px; margin: 0 auto; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
+          .header { background: linear-gradient(135deg, #8B5CF6, #7C3AED); color: white; padding: 30px; text-align: center; }
+          .company-name { font-size: 32px; font-weight: bold; margin-bottom: 5px; }
+          .tagline { font-size: 16px; opacity: 0.9; margin-bottom: 10px; }
+          .urgent-alert { background: #FEF3CD; border: 2px solid #F59E0B; border-radius: 8px; padding: 20px; margin: 20px; text-align: center; }
+          .urgent-alert h2 { color: #D97706; margin: 0 0 10px 0; font-size: 24px; }
+          .content { padding: 30px; }
+          .order-info { background: #F8F9FA; border-left: 4px solid #8B5CF6; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+          .two-column { display: flex; gap: 30px; margin: 30px 0; }
+          .column { flex: 1; }
+          .column h3 { color: #8B5CF6; margin-bottom: 15px; font-size: 18px; }
+          .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          .items-table th { background: #8B5CF6; color: white; padding: 15px; text-align: left; font-weight: bold; }
+          .items-table td { padding: 15px; border-bottom: 1px solid #E5E7EB; }
+          .items-table tr:nth-child(even) { background: #F9FAFB; }
+          .items-table tr:hover { background: #F3F4F6; }
+          .total-section { background: linear-gradient(135deg, #059669, #047857); color: white; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center; }
+          .total-amount { font-size: 32px; font-weight: bold; margin: 10px 0; }
+          .action-buttons { text-align: center; margin: 30px 0; }
+          .action-button { background: #8B5CF6; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; margin: 0 10px; }
+          .footer { background: #F8F9FA; padding: 20px; text-align: center; color: #666; font-size: 14px; }
+          .status-badge { background: #10B981; color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="company-name">🌿 VilĀura</div>
+            <div class="tagline">Natural Artisan Soaps & Premium Skincare</div>
+            <div style="font-size: 14px; opacity: 0.8;">hjdunofficial21@gmail.com | +91 98765 43210</div>
+          </div>
+          
+          <div class="urgent-alert">
+            <h2>🚨 NEW ORDER RECEIVED!</h2>
+            <p><strong>Order #${orderNumber}</strong> has been confirmed and requires immediate attention.</p>
+            <span class="status-badge">CONFIRMED</span>
+          </div>
+          
+          <div class="content">
+            <div class="order-info">
+              <h2 style="margin-top: 0; color: #8B5CF6;">📋 Order Details</h2>
+              <strong>📧 Order Number:</strong> ${orderNumber}<br>
+              <strong>📅 Date & Time:</strong> ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}<br>
+              <strong>💳 Payment Method:</strong> ${payment_method.toUpperCase()}<br>
+              <strong>✅ Payment Status:</strong> <span style="color: #10B981; font-weight: bold;">${payment_status.toUpperCase()}</span>
+            </div>
+
+            <div class="two-column">
+              <div class="column">
+                <h3>👤 Customer Information</h3>
+                <p>
+                  <strong>Name:</strong> ${customerName}<br>
+                  <strong>Email:</strong> ${guest_email || shipping_address.email}<br>
+                  <strong>Phone:</strong> ${shipping_address.phone}
+                </p>
+                
+                <h3>📍 Shipping Address</h3>
+                <p>
+                  ${shipping_address.firstName} ${shipping_address.lastName}<br>
+                  ${shipping_address.address}<br>
+                  ${shipping_address.city}, ${shipping_address.state}<br>
+                  ${shipping_address.zipCode}, ${shipping_address.country}
+                </p>
+              </div>
+              
+              <div class="column">
+                <h3>🏢 VilĀura Store</h3>
+                <p>
+                  <strong>Business:</strong> VilĀura Natural Products<br>
+                  <strong>Owner:</strong> VilĀura Team<br>
+                  <strong>Email:</strong> hjdunofficial21@gmail.com<br>
+                  <strong>Phone:</strong> +91 98765 43210<br>
+                  <strong>Address:</strong> 123 Natural Plaza<br>
+                  Mumbai, Maharashtra 400001
+                </p>
+                
+                <h3>⏰ Next Steps</h3>
+                <p>
+                  ✅ Order confirmed<br>
+                  📦 Package items (1-2 days)<br>
+                  🚚 Ship to customer (3-5 days)<br>
+                  📧 Send tracking details
+                </p>
+              </div>
+            </div>
+
+            <h3 style="color: #8B5CF6;">🛍️ Ordered Items</h3>
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th>Product Name</th>
+                  <th style="text-align: center;">Quantity</th>
+                  <th style="text-align: right;">Unit Price</th>
+                  <th style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsWithNames.map(item => `
+                  <tr>
+                    <td><strong>${item.name}</strong></td>
+                    <td style="text-align: center; font-weight: bold;">${item.quantity}</td>
+                    <td style="text-align: right;">₹${item.price.toFixed(2)}</td>
+                    <td style="text-align: right; font-weight: bold; color: #059669;">₹${(item.price * item.quantity).toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <div class="total-section">
+              <div style="font-size: 20px; margin-bottom: 10px;">💰 Total Order Amount</div>
+              <div class="total-amount">₹${calculatedTotal.toFixed(2)}</div>
+              <div style="font-size: 14px; opacity: 0.9;">Payment: ${payment_method.toUpperCase()} - ${payment_status.toUpperCase()}</div>
+            </div>
+
+            <div class="action-buttons">
+              <a href="https://id-preview--1e575ace-d7cf-4b7d-8612-5f0bc82f8ac8.lovable.app/dashboard" class="action-button">
+                📊 View Dashboard
+              </a>
+              <a href="mailto:${guest_email || shipping_address.email}" class="action-button">
+                📧 Contact Customer
+              </a>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p><strong>🌿 VilĀura - Natural Beauty Products</strong></p>
+            <p>This is an automated notification from your e-commerce system.</p>
+            <p>📧 Auto-generated on ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} | 🕐 Server Time</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Method 1: Send via RESEND
     try {
       console.log('📧 Sending owner notification email via RESEND...');
 
-      // Generate detailed HTML email
-      const emailHTML = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>VilĀura - NEW ORDER #${orderNumber}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 40px; color: #333; line-height: 1.6; background-color: #f8f9fa; }
-            .container { background: white; max-width: 800px; margin: 0 auto; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
-            .header { background: linear-gradient(135deg, #8B5CF6, #7C3AED); color: white; padding: 30px; text-align: center; }
-            .company-name { font-size: 32px; font-weight: bold; margin-bottom: 5px; }
-            .tagline { font-size: 16px; opacity: 0.9; margin-bottom: 10px; }
-            .urgent-alert { background: #FEF3CD; border: 2px solid #F59E0B; border-radius: 8px; padding: 20px; margin: 20px; text-align: center; }
-            .urgent-alert h2 { color: #D97706; margin: 0 0 10px 0; font-size: 24px; }
-            .content { padding: 30px; }
-            .order-info { background: #F8F9FA; border-left: 4px solid #8B5CF6; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
-            .two-column { display: flex; gap: 30px; margin: 30px 0; }
-            .column { flex: 1; }
-            .column h3 { color: #8B5CF6; margin-bottom: 15px; font-size: 18px; }
-            .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-            .items-table th { background: #8B5CF6; color: white; padding: 15px; text-align: left; font-weight: bold; }
-            .items-table td { padding: 15px; border-bottom: 1px solid #E5E7EB; }
-            .items-table tr:nth-child(even) { background: #F9FAFB; }
-            .items-table tr:hover { background: #F3F4F6; }
-            .total-section { background: linear-gradient(135deg, #059669, #047857); color: white; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center; }
-            .total-amount { font-size: 32px; font-weight: bold; margin: 10px 0; }
-            .action-buttons { text-align: center; margin: 30px 0; }
-            .action-button { background: #8B5CF6; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; margin: 0 10px; }
-            .footer { background: #F8F9FA; padding: 20px; text-align: center; color: #666; font-size: 14px; }
-            .status-badge { background: #10B981; color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <div class="company-name">🌿 VilĀura</div>
-              <div class="tagline">Natural Artisan Soaps & Premium Skincare</div>
-              <div style="font-size: 14px; opacity: 0.8;">hjdunofficial21@gmail.com | +91 98765 43210</div>
-            </div>
-            
-            <div class="urgent-alert">
-              <h2>🚨 NEW ORDER RECEIVED!</h2>
-              <p><strong>Order #${orderNumber}</strong> has been confirmed and requires immediate attention.</p>
-              <span class="status-badge">CONFIRMED</span>
-            </div>
-            
-            <div class="content">
-              <div class="order-info">
-                <h2 style="margin-top: 0; color: #8B5CF6;">📋 Order Details</h2>
-                <strong>📧 Order Number:</strong> ${orderNumber}<br>
-                <strong>📅 Date & Time:</strong> ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}<br>
-                <strong>💳 Payment Method:</strong> ${payment_method.toUpperCase()}<br>
-                <strong>✅ Payment Status:</strong> <span style="color: #10B981; font-weight: bold;">${payment_status.toUpperCase()}</span>
-              </div>
-
-              <div class="two-column">
-                <div class="column">
-                  <h3>👤 Customer Information</h3>
-                  <p>
-                    <strong>Name:</strong> ${customerName}<br>
-                    <strong>Email:</strong> ${guest_email || shipping_address.email}<br>
-                    <strong>Phone:</strong> ${shipping_address.phone}
-                  </p>
-                  
-                  <h3>📍 Shipping Address</h3>
-                  <p>
-                    ${shipping_address.firstName} ${shipping_address.lastName}<br>
-                    ${shipping_address.address}<br>
-                    ${shipping_address.city}, ${shipping_address.state}<br>
-                    ${shipping_address.zipCode}, ${shipping_address.country}
-                  </p>
-                </div>
-                
-                <div class="column">
-                  <h3>🏢 VilĀura Store</h3>
-                  <p>
-                    <strong>Business:</strong> VilĀura Natural Products<br>
-                    <strong>Owner:</strong> VilĀura Team<br>
-                    <strong>Email:</strong> hjdunofficial21@gmail.com<br>
-                    <strong>Phone:</strong> +91 98765 43210<br>
-                    <strong>Address:</strong> 123 Natural Plaza<br>
-                    Mumbai, Maharashtra 400001
-                  </p>
-                  
-                  <h3>⏰ Next Steps</h3>
-                  <p>
-                    ✅ Order confirmed<br>
-                    📦 Package items (1-2 days)<br>
-                    🚚 Ship to customer (3-5 days)<br>
-                    📧 Send tracking details
-                  </p>
-                </div>
-              </div>
-
-              <h3 style="color: #8B5CF6;">🛍️ Ordered Items</h3>
-              <table class="items-table">
-                <thead>
-                  <tr>
-                    <th>Product Name</th>
-                    <th style="text-align: center;">Quantity</th>
-                    <th style="text-align: right;">Unit Price</th>
-                    <th style="text-align: right;">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${itemsWithNames.map(item => `
-                    <tr>
-                      <td><strong>${item.name}</strong></td>
-                      <td style="text-align: center; font-weight: bold;">${item.quantity}</td>
-                      <td style="text-align: right;">₹${item.price.toFixed(2)}</td>
-                      <td style="text-align: right; font-weight: bold; color: #059669;">₹${(item.price * item.quantity).toFixed(2)}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-
-              <div class="total-section">
-                <div style="font-size: 20px; margin-bottom: 10px;">💰 Total Order Amount</div>
-                <div class="total-amount">₹${calculatedTotal.toFixed(2)}</div>
-                <div style="font-size: 14px; opacity: 0.9;">Payment: ${payment_method.toUpperCase()} - ${payment_status.toUpperCase()}</div>
-              </div>
-
-              <div class="action-buttons">
-                <a href="https://id-preview--1e575ace-d7cf-4b7d-8612-5f0bc82f8ac8.lovable.app/dashboard" class="action-button">
-                  📊 View Dashboard
-                </a>
-                <a href="mailto:${guest_email || shipping_address.email}" class="action-button">
-                  📧 Contact Customer
-                </a>
-              </div>
-            </div>
-
-            <div class="footer">
-              <p><strong>🌿 VilĀura - Natural Beauty Products</strong></p>
-              <p>This is an automated notification from your e-commerce system.</p>
-              <p>📧 Auto-generated on ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} | 🕐 Server Time</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
-      // Send email using RESEND
       const emailResponse = await resend.emails.send({
         from: 'VilĀura Store <onboarding@resend.dev>',
         to: ['hjdunofficial21@gmail.com', 'aksharthakkar774@gmail.com'],
@@ -298,15 +301,53 @@ serve(async (req) => {
 
       if (emailResponse.error) {
         console.error('❌ RESEND email failed:', emailResponse.error);
-        throw new Error(`Email failed: ${emailResponse.error.message}`);
       } else {
         console.log('✅ RESEND EMAIL SENT SUCCESSFULLY to hjdunofficial21@gmail.com and aksharthakkar774@gmail.com');
         console.log('📧 Email ID:', emailResponse.data?.id);
+        emailSentSuccessfully = true;
       }
 
     } catch (emailError) {
       console.error('❌ Failed to send RESEND email:', emailError);
-      // Continue with order processing even if email fails
+    }
+
+    // Method 2: Send via Gmail SMTP as backup
+    if (!emailSentSuccessfully) {
+      try {
+        console.log('📧 RESEND failed, trying Gmail SMTP as backup...');
+        
+        const gmailUser = Deno.env.get('GMAIL_USER_SECONDARY');
+        const gmailPass = Deno.env.get('GMAIL_PASS_SECONDARY');
+        
+        if (!gmailUser || !gmailPass) {
+          console.error('❌ Gmail credentials not configured');
+        } else {
+          const smtpClient = new SMTPClient({
+            connection: {
+              hostname: "smtp.gmail.com",
+              port: 587,
+              tls: true,
+              auth: {
+                username: gmailUser,
+                password: gmailPass,
+              },
+            },
+          });
+
+          await smtpClient.send({
+            from: `VilĀura Store <${gmailUser}>`,
+            to: "hjdunofficial21@gmail.com,aksharthakkar774@gmail.com",
+            subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
+            html: emailHTML,
+          });
+
+          await smtpClient.close();
+          console.log('✅ GMAIL SMTP EMAIL SENT SUCCESSFULLY to both owners');
+          emailSentSuccessfully = true;
+        }
+      } catch (gmailError) {
+        console.error('❌ Gmail SMTP backup also failed:', gmailError);
+      }
     }
 
     // Store notification in database
