@@ -290,7 +290,7 @@ serve(async (req) => {
       // Send email using RESEND
       const emailResponse = await resend.emails.send({
         from: 'VilĀura Store <onboarding@resend.dev>',
-        to: ['hjdunofficial21@gmail.com'],
+        to: ['hjdunofficial21@gmail.com', 'aksharthakkar774@gmail.com'],
         subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
         html: emailHTML,
         text: `NEW ORDER RECEIVED!\n\nOrder #${orderNumber}\nCustomer: ${customerName}\nTotal: ₹${calculatedTotal.toFixed(2)}\nPayment: ${payment_method}\n\nItems:\n${itemsWithNames.map(item => `- ${item.name} x${item.quantity} = ₹${(item.price * item.quantity).toFixed(2)}`).join('\n')}\n\nShipping Address:\n${shipping_address.address}, ${shipping_address.city}, ${shipping_address.state} ${shipping_address.zipCode}\n\nPhone: ${shipping_address.phone}\nEmail: ${guest_email || shipping_address.email}`
@@ -300,7 +300,7 @@ serve(async (req) => {
         console.error('❌ RESEND email failed:', emailResponse.error);
         throw new Error(`Email failed: ${emailResponse.error.message}`);
       } else {
-        console.log('✅ RESEND EMAIL SENT SUCCESSFULLY to hjdunofficial21@gmail.com');
+        console.log('✅ RESEND EMAIL SENT SUCCESSFULLY to hjdunofficial21@gmail.com and aksharthakkar774@gmail.com');
         console.log('📧 Email ID:', emailResponse.data?.id);
       }
 
