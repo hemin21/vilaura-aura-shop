@@ -287,28 +287,42 @@ serve(async (req) => {
       </html>
     `;
 
-    // Method 1: Send via RESEND
+    // Method 1: Send via RESEND - Individual emails to ensure both owners receive
     try {
-      console.log('📧 Sending owner notification email via RESEND...');
+      console.log('📧 Sending owner notification emails via RESEND...');
+      
+      const emailRecipients = ['hjdunofficial21@gmail.com', 'aksharthakkar774@gmail.com'];
+      let emailsSent = 0;
 
-      const emailResponse = await resend.emails.send({
-        from: 'VilĀura Store <onboarding@resend.dev>',
-        to: ['hjdunofficial21@gmail.com', 'aksharthakkar774@gmail.com'],
-        subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
-        html: emailHTML,
-        text: `NEW ORDER RECEIVED!\n\nOrder #${orderNumber}\nCustomer: ${customerName}\nTotal: ₹${calculatedTotal.toFixed(2)}\nPayment: ${payment_method}\n\nItems:\n${itemsWithNames.map(item => `- ${item.name} x${item.quantity} = ₹${(item.price * item.quantity).toFixed(2)}`).join('\n')}\n\nShipping Address:\n${shipping_address.address}, ${shipping_address.city}, ${shipping_address.state} ${shipping_address.zipCode}\n\nPhone: ${shipping_address.phone}\nEmail: ${guest_email || shipping_address.email}`
-      });
+      for (const recipient of emailRecipients) {
+        try {
+          const emailResponse = await resend.emails.send({
+            from: 'VilĀura Store <onboarding@resend.dev>',
+            to: [recipient],
+            subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
+            html: emailHTML,
+            text: `NEW ORDER RECEIVED!\n\nOrder #${orderNumber}\nCustomer: ${customerName}\nTotal: ₹${calculatedTotal.toFixed(2)}\nPayment: ${payment_method}\n\nItems:\n${itemsWithNames.map(item => `- ${item.name} x${item.quantity} = ₹${(item.price * item.quantity).toFixed(2)}`).join('\n')}\n\nShipping Address:\n${shipping_address.address}, ${shipping_address.city}, ${shipping_address.state} ${shipping_address.zipCode}\n\nPhone: ${shipping_address.phone}\nEmail: ${guest_email || shipping_address.email}`
+          });
 
-      if (emailResponse.error) {
-        console.error('❌ RESEND email failed:', emailResponse.error);
-      } else {
-        console.log('✅ RESEND EMAIL SENT SUCCESSFULLY to hjdunofficial21@gmail.com and aksharthakkar774@gmail.com');
-        console.log('📧 Email ID:', emailResponse.data?.id);
+          if (emailResponse.error) {
+            console.error(`❌ RESEND email failed for ${recipient}:`, emailResponse.error);
+          } else {
+            console.log(`✅ RESEND EMAIL SENT SUCCESSFULLY to ${recipient}`);
+            console.log(`📧 Email ID for ${recipient}:`, emailResponse.data?.id);
+            emailsSent++;
+          }
+        } catch (recipientError) {
+          console.error(`❌ Failed to send RESEND email to ${recipient}:`, recipientError);
+        }
+      }
+
+      if (emailsSent > 0) {
+        console.log(`✅ RESEND: ${emailsSent}/${emailRecipients.length} emails sent successfully`);
         emailSentSuccessfully = true;
       }
 
     } catch (emailError) {
-      console.error('❌ Failed to send RESEND email:', emailError);
+      console.error('❌ Failed to send RESEND emails:', emailError);
     }
 
     // Method 2: Send via Gmail SMTP as backup
