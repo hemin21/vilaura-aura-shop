@@ -32,13 +32,19 @@ serve(async (req) => {
   }
 
   try {
-    // Get Resend API key
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    if (!resendApiKey) {
+    // Get Resend API keys for both owners
+    const resendApiKeyPrimary = Deno.env.get('RESEND_API_KEY');
+    const resendApiKeySecondary = Deno.env.get('RESEND_API_KEY_SECONDARY');
+    
+    if (!resendApiKeyPrimary) {
       throw new Error('RESEND_API_KEY not configured');
     }
+    if (!resendApiKeySecondary) {
+      throw new Error('RESEND_API_KEY_SECONDARY not configured');
+    }
     
-    const resend = new Resend(resendApiKey);
+    const resendPrimary = new Resend(resendApiKeyPrimary);
+    const resendSecondary = new Resend(resendApiKeySecondary);
 
     // Create Supabase client with service role key
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -291,11 +297,11 @@ serve(async (req) => {
     let primaryEmailSent = false;
     let secondaryEmailSent = false;
     
-    // Method 1: Send via RESEND to primary owner
+    // Method 1: Send via RESEND to primary owner (hjdunofficial21@gmail.com)
     try {
-      console.log('📧 Sending to primary owner via RESEND...');
+      console.log('📧 Sending to primary owner via RESEND (Primary API Key)...');
       
-      const primaryEmailResponse = await resend.emails.send({
+      const primaryEmailResponse = await resendPrimary.emails.send({
         from: 'VilĀura Store <onboarding@resend.dev>',
         to: ['hjdunofficial21@gmail.com'],
         subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
@@ -314,11 +320,11 @@ serve(async (req) => {
       console.error('❌ Primary RESEND email failed:', error);
     }
 
-    // Method 2: Send via RESEND to secondary owner
+    // Method 2: Send via RESEND to secondary owner (aksharthakkar774@gmail.com)
     try {
-      console.log('📧 Sending to secondary owner via RESEND...');
+      console.log('📧 Sending to secondary owner via RESEND (Secondary API Key)...');
       
-      const secondaryEmailResponse = await resend.emails.send({
+      const secondaryEmailResponse = await resendSecondary.emails.send({
         from: 'VilĀura Store <onboarding@resend.dev>',
         to: ['aksharthakkar774@gmail.com'],
         subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
