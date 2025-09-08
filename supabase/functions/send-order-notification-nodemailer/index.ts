@@ -32,9 +32,10 @@ serve(async (req) => {
   }
 
   try {
-    // Get Resend API keys for both owners
+    // Get Resend API keys for all three owners
     const resendApiKeyPrimary = Deno.env.get('RESEND_API_KEY');
     const resendApiKeySecondary = Deno.env.get('RESEND_API_KEY_SECONDARY');
+    const resendApiKeyThird = Deno.env.get('RESEND_API_KEY_THIRD');
     
     if (!resendApiKeyPrimary) {
       throw new Error('RESEND_API_KEY not configured');
@@ -42,9 +43,13 @@ serve(async (req) => {
     if (!resendApiKeySecondary) {
       throw new Error('RESEND_API_KEY_SECONDARY not configured');
     }
+    if (!resendApiKeyThird) {
+      throw new Error('RESEND_API_KEY_THIRD not configured');
+    }
     
     const resendPrimary = new Resend(resendApiKeyPrimary);
     const resendSecondary = new Resend(resendApiKeySecondary);
+    const resendThird = new Resend(resendApiKeyThird);
 
     // Create Supabase client with service role key
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -293,9 +298,10 @@ serve(async (req) => {
       </html>
     `;
 
-    // Dual RESEND email system for maximum reliability
+    // Triple RESEND email system for maximum reliability
     let primaryEmailSent = false;
     let secondaryEmailSent = false;
+    let thirdEmailSent = false;
     
     // Method 1: Send via RESEND to primary owner (hjdunofficial21@gmail.com)
     try {
@@ -341,6 +347,29 @@ serve(async (req) => {
       }
     } catch (error) {
       console.error('❌ Secondary RESEND email failed:', error);
+    }
+
+    // Method 3: Send via RESEND to third owner (vilaurasoap@gmail.com)
+    try {
+      console.log('📧 Sending to third owner via RESEND (Third API Key)...');
+      
+      const thirdEmailResponse = await resendThird.emails.send({
+        from: 'VilĀura Store <onboarding@resend.dev>',
+        to: ['vilaurasoap@gmail.com'],
+        subject: `🚨 NEW ORDER #${orderNumber} - VilĀura (₹${calculatedTotal.toFixed(2)})`,
+        html: emailHTML,
+        text: `NEW ORDER RECEIVED!\n\nOrder #${orderNumber}\nCustomer: ${customerName}\nTotal: ₹${calculatedTotal.toFixed(2)}\nPayment: ${payment_method}\n\nItems:\n${itemsWithNames.map(item => `- ${item.name} x${item.quantity} = ₹${(item.price * item.quantity).toFixed(2)}`).join('\n')}\n\nShipping Address:\n${shipping_address.address}, ${shipping_address.city}, ${shipping_address.state} ${shipping_address.zipCode}\n\nPhone: ${shipping_address.phone}\nEmail: ${guest_email || shipping_address.email}`
+      });
+
+      if (thirdEmailResponse.error) {
+        console.error('❌ RESEND failed for third owner:', thirdEmailResponse.error);
+      } else {
+        console.log('✅ RESEND EMAIL SENT to vilaurasoap@gmail.com');
+        thirdEmailSent = true;
+        emailSentSuccessfully = true;
+      }
+    } catch (error) {
+      console.error('❌ Third RESEND email failed:', error);
     }
 
     // Store notification in database
